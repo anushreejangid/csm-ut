@@ -28,7 +28,7 @@ from csmpe.plugins import CSMPlugin
 from install import observe_install_add_remove
 from install import check_ncs6k_release
 from csmpe.core_plugins.csm_get_inventory.exr.plugin import get_package, get_inventory
-
+import re
 
 class Plugin(CSMPlugin):
     """This plugin adds packages from repository to the device."""
@@ -73,6 +73,25 @@ class Plugin(CSMPlugin):
             cmd = "install add source {} {}".format(server_repository_url, s_packages)
             output = self.ctx.send(cmd, timeout=100)
 
+        nextlevel = self.ctx.nextlevel
+        if nextlevel:
+            for cmds in nextlevel:
+                shell = cmds.get("Shell", None)
+                cmd = cmds.get("Command", None)
+                pattern = cmds.get("Pattern", None)
+                cmd = "run " + cmd
+                if shell is "SysadminBash":
+                    cmd_out = send_admin_cmd(self.ctx, cmd)
+                else:
+                    cmd_out = self.ctx.send(cmd, timeout=100)
+                if pattern:
+                    result = re.search(pattern, cmd_out)
+                    if result:
+                        self.ctx.info("Pattern {} found".format(pattern))
+                    else:
+                        self.ctx.error("Pattern {} not found".format(pattern))
+
+
         observe_install_add_remove(self.ctx, output, has_tar=has_tar)
 
     def run(self):
@@ -84,18 +103,20 @@ class Plugin(CSMPlugin):
             return
 
         packages = self.ctx.software_packages
+        print ("%s" % (packages))
         if packages is None:
             self.ctx.error("No package list provided")
             return
-
+        else:
+            self.ctx.info("Packages to be installed {}".format(packages))
         has_tar = False
 
         if self.ctx.family == 'NCS6K':
             s_packages = " ".join([package for package in packages
                                    if ('iso' in package or 'pkg' in package or 'smu' in package or 'tar' in package)])
         else:
-            s_packages = " ".join([package for package in packages
-                                   if ('rpm' in package or 'iso' in package or 'tar' in package)])
+            s_packages = " ".join([package for package in packages])
+#                                   if ('rpm' in package or 'iso' in package or 'tar' in package)])
 
         if 'tar' in s_packages:
             has_tar = True
@@ -105,7 +126,7 @@ class Plugin(CSMPlugin):
 
         self.ctx.info("Add Package(s) Pending")
         self.ctx.post_status("Add Package(s) Pending")
-
+        #self.ctx.info("nextlevel {}".format(self.ctx.nextlevel))
         self.install_add(server_repository_url, s_packages, has_tar=has_tar)
 
         self.ctx.info("Package(s) Added Successfully")

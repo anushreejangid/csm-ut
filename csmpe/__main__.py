@@ -37,6 +37,9 @@ import logging
 import os
 import textwrap
 import urlparse
+import json
+import pprint
+import argparse
 
 from csmpe.context import InstallContext
 from csmpe.csm_pm import CSMPluginManager
@@ -96,6 +99,7 @@ class URL(click.ParamType):
 @click.group()
 def cli():
     """This script allows maintaining and executing the plugins."""
+    print "helloooo"
     pass
 
 
@@ -182,6 +186,99 @@ def plugin_run(url, phase, cmd, log_dir, package, repository_url, plugin_name):
     click.echo(" {} - device connection debug log".format(condoor_filename))
     click.echo("Results: {}".format(" ".join(map(str, results))))
 
+def jsonparser():
+    oper_plugin = {
+                  "Add" : "Install Add Plugin",
+                  "Remove" : "Install Remove Plugin",
+                  "Activate" : "Install Activate Plugin",
+                  "Deactivate" : "Install Deactivate Plugin",
+                  "Commit" : "Install Commit Plugin",
+                  "Core Check" : "Core Error Check Plugin",
+                  "Node Check" : "Node Status Check Plugin",
+                  "Command" : "Custom Commands Capture Plugin"
+                  }
+    with open('./tc3_ha.json') as data_file:
+        data = json.load(data_file)
+    log_dir = "/Users/anjangid/"
+    session_filename = os.path.join(log_dir, "session.log")
+    plugins_filename = os.path.join(log_dir, "plugins.log")
+    condoor_filename = os.path.join(log_dir, "condoor.log")
+
+    if os.path.exists(session_filename):
+        os.remove(session_filename)
+    if os.path.exists(plugins_filename):
+        os.remove(plugins_filename)
+    if os.path.exists(condoor_filename):
+        os.remove(condoor_filename)
+
+    for idx, tc in enumerate(data):
+        #url, phase, cmd, log_dir, package, repository_url, plugin_name
+        ctx = InstallContext()
+        ctx.hostname = "Hostname"
+        ctx.host_urls = "telnet://root:lab@172.29.121.187:2003"
+        ctx.success = False
+        ctx.tc_name = tc.get("TC")
+        if ctx.tc_name :
+          print("Executing TC No {} : {}".format(idx+1, ctx.tc_name))
+        ctx.tc_id = idx + 1
+        shell = tc.get("Shell")
+        ctx.shell = shell
+        if shell:
+            operation = tc.get("Operation")
+            if operation:
+              plugin_name = oper_plugin.get(operation)
+              if not plugin_name:
+                  plugin_name = oper_plugin["Command"]
+                  cmd  = tc.get("Operation")
+                  ctx._custom_commands = [cmd]
+                  print("Custom command {}".format(ctx.custom_commands))
+            elif tc.get("Command"):
+                plugin_name = oper_plugin["Command"]
+                cmd  = tc.get("Command")
+                print("Plugin cmd {}".format(cmd))
+                if cmd:
+                    cmd = ["run " + cmd ]
+                    ctx._custom_commands = cmd
+                    print ctx.custom_commands
+            else:
+                print "No plugin found. "
+        else:
+            print "Nothing to do here"
+            continue
+        #ctx.requested_action = []
+        ctx.log_directory = log_dir
+        ctx.log_level = logging.DEBUG
+
+        packages = tc.get("Packages")
+        if packages:
+            pkg = []
+            pkg.append(packages)
+            ctx.software_packages = pkg
+            print ctx.software_packages
+        repository_url = tc.get("Repository_url")
+        if repository_url:
+            ctx.server_repository_url = repository_url
+
+        pattern = tc.get("Pattern")
+        if pattern:
+            ctx.pattern = pattern
+
+        nextlevel = tc.get("Nextlevel")
+        print nextlevel
+        if nextlevel:
+            ctx.nextlevel = nextlevel
+            print "Setting next level"
+
+        pm = CSMPluginManager(ctx)
+        pm.set_name_filter(plugin_name)
+        results = pm.dispatch("run")
+
+        print("\n Plugin execution finished.\n")
+        print("Log files dir: {}".format(log_dir))
+        print(" {} - device session log".format(session_filename))
+        print(" {} - plugin execution log".format(plugins_filename))
+        print(" {} - device connection debug log".format(condoor_filename))
+        print("Results: {}".format(" ".join(map(str, results))))
 
 if __name__ == '__main__':
-    cli()
+    jsonparser()

@@ -48,6 +48,8 @@ class PluginError(Exception):
 
 class InstallContext(object):
     _storage = {}
+    _custom_commands = ["show isis neighbor", "show ospf neighbor", "show bgp summary", "show install inactive summary",
+        "show install active summary"]
 
     def __init__(self):
         self.hostname = "Hostname"
@@ -65,9 +67,11 @@ class InstallContext(object):
 
     @property
     def custom_commands(self):
-        return ["show isis neighbor", "show ospf neighbor", "show bgp summary", "show install inactive summary",
-                "show install active summary"]
+        return self._custom_commands
 
+    @custom_commands.setter
+    def custom_commands(self,cmd):
+        self._custom_commands = cmd
 
 class Host(object):
     pass
@@ -75,7 +79,7 @@ class Host(object):
 
 @delegate("_csm", ("post_status",), ("custom_commands", "success", "operation_id", "server_repository_url",
                                      "software_packages", "hostname", "log_directory", "migration_directory",
-                                     "get_server", "get_host"))
+                                     "get_server", "get_host", "nextlevel", "shell", "pattern", "tc_name", "tc_id"))
 @delegate("_connection", ("connect", "disconnect", "reconnect", "discovery", "send", "run_fsm", "reload"),
           ("family", "prompt", "os_type", "os_version"))
 class PluginContext(object):
