@@ -28,7 +28,8 @@
 
 from csmpe.plugins import CSMPlugin
 from condoor.exceptions import CommandSyntaxError
-from csmpe.core_plugins.csm_install_operations.exr.install import send_admin_cmd
+from csmpe.core_plugins.csm_install_operations.exr.install import send_admin_cmd, match_pattern
+from csmpe.core_plugins.csm_install_operations.exr.install import report_log
 import re
 
 class Plugin(CSMPlugin):
@@ -51,11 +52,8 @@ class Plugin(CSMPlugin):
                         output = self.ctx.send(cmd, timeout=2200)
                     self.ctx.info("command sent {}".format(cmd))
                     if self.ctx.pattern:
-                        result = re.search(self.ctx.pattern, output)
-                        if result:
-                            self.ctx.info("Pattern {} matched..!!!".format(self.ctx.pattern))
-                        else:
-                            self.ctx.info("Pattern {} not matched!!!".format(self.ctx.pattern))
+                        status, message = match_pattern(self.ctx.pattern, output) 
+                        report_log(self.ctx, status, message)
                     file_name = self.ctx.save_to_file(cmd, output)
                     if file_name is None:
                         self.ctx.error("Unable to save '{}' output to file: {}".format(cmd, file_name))

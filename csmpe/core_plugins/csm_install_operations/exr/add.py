@@ -28,6 +28,7 @@ from csmpe.plugins import CSMPlugin
 from install import observe_install_add_remove
 from install import check_ncs6k_release
 from csmpe.core_plugins.csm_get_inventory.exr.plugin import get_package, get_inventory
+from csmpe.core_plugins.csm_install_operations.exr.install import next_level_processing
 import re
 
 class Plugin(CSMPlugin):
@@ -75,23 +76,7 @@ class Plugin(CSMPlugin):
 
         nextlevel = self.ctx.nextlevel
         if nextlevel:
-            for cmds in nextlevel:
-                shell = cmds.get("Shell", None)
-                cmd = cmds.get("Command", None)
-                pattern = cmds.get("Pattern", None)
-                cmd = "run " + cmd
-                if shell is "SysadminBash":
-                    cmd_out = send_admin_cmd(self.ctx, cmd)
-                else:
-                    cmd_out = self.ctx.send(cmd, timeout=100)
-                if pattern:
-                    result = re.search(pattern, cmd_out)
-                    if result:
-                        self.ctx.info("Pattern {} found".format(pattern))
-                    else:
-                        self.ctx.error("Pattern {} not found".format(pattern))
-
-
+            next_level_processing(self.ctx)
         observe_install_add_remove(self.ctx, output, has_tar=has_tar)
 
     def run(self):

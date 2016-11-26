@@ -26,6 +26,8 @@
 # =============================================================================
 import re
 import time
+import os
+import json
 from condoor import ConnectionError
 from csmpe.core_plugins.csm_node_status_check.exr.plugin_lib import parse_show_platform
 
@@ -246,7 +248,9 @@ def observe_install_add_remove(ctx, output, has_tar=False):
             ctx.info("The operation {} stored".format(op_id))
     else:
         log_install_errors(ctx, output)
-        ctx.error("Operation failed")
+        status, message = match_pattern(ctx.pattern, output)
+        report_log(ctx, status, message) 
+        ctx.info("Operation failed")
         return  # for sake of clarity
 
     op_success = "Install operation will continue in the background"
@@ -254,6 +258,8 @@ def observe_install_add_remove(ctx, output, has_tar=False):
     if op_success in output:
         watch_operation(ctx, op_id)
     else:
+        status, message = match_pattern(ctx.pattern, output)
+        report_log(ctx, status, message) 
         log_install_errors(ctx, output)
         ctx.error("Operation {} failed".format(op_id))
 
@@ -268,6 +274,15 @@ def get_op_id(output):
         return result.group(1)
     return -1
 
+def report_log(ctx, status, message):
+    data = {}
+    data['TC'] = ctx.tc_name
+    data['ID'] = ctx.tc_id
+    data['status'] = 'Pass' if status else 'Fail'
+    data['message'] = message
+    with open(os.path.join(ctx.log_directory, 'result.log'), 'a') as fd_log:
+        fd_log.write(json.dumps(data, indent=4))
+    ctx.post_status("ID: {}, TC: {} :: {}".format(ctx.tc_id, ctx.tc_name, message))
 
 def report_install_status(ctx, op_id):
     """
@@ -277,12 +292,12 @@ def report_install_status(ctx, op_id):
     """
     failed_oper = r'Install operation {} aborted'.format(op_id)
     output = ctx.send("show install log {} detail".format(op_id))
+    status, message = match_pattern(ctx.pattern, output)
+    report_log(ctx, status, message) 
     if re.search(failed_oper, output):
         log_install_errors(ctx, output)
         ctx.error("Operation {} failed".format(op_id))
-
     ctx.info("Operation {} finished successfully".format(op_id))
-
 
 def handle_aborted(fsm_ctx):
     """
@@ -451,3 +466,32 @@ def send_admin_cmd(ctx, cmd):
     ctx.send("exit")
 
     return output
+
+def match_pattern(pattern, output):
+    if pattern:
+        regex = re.compile("%s" %"|".join(pattern))
+        result_list = regex.findall(output)
+        result = "^|^".join(result_list)
+       
+        if result:
+            return True, "Pattern {} matched..!!!".format(result)
+        else:
+            return False, "Pattern {} not matched in {}!!!".format(pattern, output)
+
+def next_level_processing(ctx):
+    if ctx.nextlevel:
+        ctx.info("Next level processing ")
+        for cmds in ctx.nextlevel:
+            shell = cmds.get("Shell")
+            cmd = cmds.get("Command")
+            pattern = cmds.get("Pattern")
+            if "Bash" in shell:
+                 cmd = "run " + cmd
+            if shell is "SysadminBash":
+                cmd_out = send_admin_cmd(ctx, cmd)
+            else:
+                cmd_out = ctx.send(cmd, timeout=100)
+            if pattern:
+                status, message = match_pattern(pattern, cmd_out)
+                report_log(ctx, status, message) 
+

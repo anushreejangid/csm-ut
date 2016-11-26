@@ -39,7 +39,7 @@ import textwrap
 import urlparse
 import json
 import pprint
-import argparse
+import time
 
 from csmpe.context import InstallContext
 from csmpe.csm_pm import CSMPluginManager
@@ -186,7 +186,16 @@ def plugin_run(url, phase, cmd, log_dir, package, repository_url, plugin_name):
     click.echo(" {} - device connection debug log".format(condoor_filename))
     click.echo("Results: {}".format(" ".join(map(str, results))))
 
-def jsonparser():
+@cli.command("test", help="Drive test case runs based on user input or automated", 
+                     short_help="Run test case")
+@click.option("--url", multiple=True, envvar='CSMPLUGIN_URLS', type=URL(),
+              help='The connection url to the host (i.e. telnet://user:pass@hostname). '
+                   'The --url option can be repeated to define multiple jumphost urls. '
+                   'If no --url option provided the CSMPLUGIN_URLS environment variable is used. ')
+@click.option("--log_dir", default="/tmp", type=click.Path(),
+              help="Log directory. If not specified then default is /tmp")
+@click.option("--tc_loc", required=True, type=click.Path(), help="Test case file/dir location")
+def jsonparser(url, tc_loc, log_dir):
     oper_plugin = {
                   "Add" : "Install Add Plugin",
                   "Remove" : "Install Remove Plugin",
@@ -195,90 +204,85 @@ def jsonparser():
                   "Commit" : "Install Commit Plugin",
                   "Core Check" : "Core Error Check Plugin",
                   "Node Check" : "Node Status Check Plugin",
-                  "Command" : "Custom Commands Capture Plugin"
+                  "Command" : "Custom Commands Capture Plugin",
+                  "Prepare" : "Install Prepare Plugin"
                   }
-    with open('./tc3_ha.json') as data_file:
-        data = json.load(data_file)
-    log_dir = "/Users/anjangid/"
-    session_filename = os.path.join(log_dir, "session.log")
-    plugins_filename = os.path.join(log_dir, "plugins.log")
-    condoor_filename = os.path.join(log_dir, "condoor.log")
-
-    if os.path.exists(session_filename):
-        os.remove(session_filename)
-    if os.path.exists(plugins_filename):
-        os.remove(plugins_filename)
-    if os.path.exists(condoor_filename):
-        os.remove(condoor_filename)
-
-    for idx, tc in enumerate(data):
-        #url, phase, cmd, log_dir, package, repository_url, plugin_name
-        ctx = InstallContext()
-        ctx.hostname = "Hostname"
-        ctx.host_urls = "telnet://root:lab@172.29.121.187:2003"
-        ctx.success = False
-        ctx.tc_name = tc.get("TC")
-        if ctx.tc_name :
-          print("Executing TC No {} : {}".format(idx+1, ctx.tc_name))
-        ctx.tc_id = idx + 1
-        shell = tc.get("Shell")
-        ctx.shell = shell
-        if shell:
-            operation = tc.get("Operation")
-            if operation:
-              plugin_name = oper_plugin.get(operation)
-              if not plugin_name:
-                  plugin_name = oper_plugin["Command"]
-                  cmd  = tc.get("Operation")
-                  ctx._custom_commands = [cmd]
-                  print("Custom command {}".format(ctx.custom_commands))
-            elif tc.get("Command"):
-                plugin_name = oper_plugin["Command"]
-                cmd  = tc.get("Command")
-                print("Plugin cmd {}".format(cmd))
-                if cmd:
-                    cmd = ["run " + cmd ]
-                    ctx._custom_commands = cmd
-                    print ctx.custom_commands
-            else:
-                print "No plugin found. "
-        else:
-            print "Nothing to do here"
-            continue
-        #ctx.requested_action = []
-        ctx.log_directory = log_dir
-        ctx.log_level = logging.DEBUG
-
-        packages = tc.get("Packages")
-        if packages:
-            pkg = []
-            pkg.append(packages)
-            ctx.software_packages = pkg
-            print ctx.software_packages
-        repository_url = tc.get("Repository_url")
-        if repository_url:
-            ctx.server_repository_url = repository_url
-
-        pattern = tc.get("Pattern")
-        if pattern:
-            ctx.pattern = pattern
-
-        nextlevel = tc.get("Nextlevel")
-        print nextlevel
-        if nextlevel:
-            ctx.nextlevel = nextlevel
-            print "Setting next level"
-
-        pm = CSMPluginManager(ctx)
-        pm.set_name_filter(plugin_name)
-        results = pm.dispatch("run")
-
-        print("\n Plugin execution finished.\n")
-        print("Log files dir: {}".format(log_dir))
-        print(" {} - device session log".format(session_filename))
-        print(" {} - plugin execution log".format(plugins_filename))
-        print(" {} - device connection debug log".format(condoor_filename))
-        print("Results: {}".format(" ".join(map(str, results))))
+    tc_list = []
+    if os.path.isfile(tc_loc):
+        tc_list.append(tc_loc)
+    elif os.path.isdir(tc_loc):
+        tc_list = [os.path.join(tc_loc,f) for f in os.listdir(tc_loc) if f.endswith(".json")]
+    
+    for tc_file in tc_list:
+        with open(tc_file) as fd:
+            try:
+                data = json.load(fd)
+            except Error:
+                click.echo("ERROR! Json file %s failed to parse".format(tc_file))
+                continue
+            log_subdir = os.path.splitext(os.path.basename(tc_file))[0]
+            log_dir = os.path.join(log_dir, time.strftime("csm-%Y%m%d%H%M%S"), log_subdir)
+        
+            for idx, tc in enumerate(data):
+                #url, phase, cmd, log_dir, package, repository_url, plugin_name
+                ctx = InstallContext()
+                ctx.hostname = "Hostname"
+                ctx.host_urls = list(url)
+                ctx.success = False
+                ctx.tc_name = tc.get("TC")
+                if ctx.tc_name :
+                  print("Executing TC No {} : {}".format(idx+1, ctx.tc_name))
+                ctx.tc_id = idx + 1
+                ctx.shell = tc.get("Shell")
+                ctx.requested_action = []
+                
+                if ctx.shell:
+                    operation = tc.get("Operation")
+                    if operation:
+                      plugin_name = oper_plugin.get(operation)
+                      if not plugin_name:
+                          print("No plugin found for {}".format(plugin_name))
+                          continue
+                    elif tc.get("Command"):
+                        plugin_name = oper_plugin["Command"]
+                        cmd  = tc.get("Command")
+                        print("Plugin cmd {} with shell {} with plugin {}".format(cmd, ctx.shell, plugin_name))
+                        if cmd:
+                            if "Bash" in ctx.shell:
+                                cmd = "run " + cmd 
+                                ctx.requested_action = ["Pre-Upgrade"]
+                            ctx._custom_commands = [cmd]
+                            print ("Custom command {}".format(ctx.custom_commands))
+                        else:
+                            print "No command specified to execute"
+                            continue 
+                    else:
+                        print "No plugin found. "
+                        continue
+                else:
+                    print "Nothing to do here"
+                    continue
+                ctx.log_directory = log_dir
+                ctx.log_level = logging.DEBUG
+        
+                ctx.software_packages = tc.get("Packages",[])
+                print ctx.software_packages
+                ctx.server_repository_url = tc.get("Repository_url")
+        
+                ctx.pattern = tc.get("Pattern",[])
+                print("pattern {}".format(ctx.pattern))
+        
+                ctx.nextlevel = tc.get("Nextlevel",[])
+                print ctx.nextlevel
+        
+                pm = CSMPluginManager(ctx)
+                pm.set_name_filter(plugin_name)
+                results = pm.dispatch("run")
+        
+                print("\n Plugin execution finished.\n")
+                print("Log files dir: {}".format(log_dir))
+                print("Results: {}".format(" ".join(map(str, results))))
 
 if __name__ == '__main__':
-    jsonparser()
+    cli()
+    #jsonparser()
