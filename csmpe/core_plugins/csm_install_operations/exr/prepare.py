@@ -35,13 +35,13 @@ from csmpe.core_plugins.csm_install_operations.utils import update_device_info_u
 
 
 class Plugin(CSMPlugin):
-    """This plugin Activates packages on the device."""
-    name = "Install Activate Plugin"
+    """This plugin prepares packages on the device."""
+    name = "Install Prepare Plugin"
     platforms = {'ASR9K', 'NCS1K', 'NCS5K', 'NCS5500', 'NCS6K', 'IOS-XRv'}
-    phases = {'Activate'}
+    phases = {'Pre-Activate'}
     os = {'eXR'}
 
-    def get_tobe_activated_pkg_list(self):
+    def get_tobe_prepared_pkg_list(self):
         """
         Produces a list of packaged to be activated
         """
@@ -62,14 +62,13 @@ class Plugin(CSMPlugin):
 
         installed_inact = SoftwarePackage.from_show_cmd(self.ctx.send("show install inactive"))
         installed_act = SoftwarePackage.from_show_cmd(self.ctx.send("show install active"))
-
         installed_inact.update(admin_installed_inact)
         installed_act.update(admin_installed_act)
 
-        # Packages to activate but not already active
+        # Packages to prepared but not already active
         pkgs = pkgs - installed_act
         if pkgs:
-            packages_to_activate = set()
+            packages_to_prepare = set()
             # After the packages are considered equal according to SoftwarePackage.__eq__(),
             # Use the package name in the inactive area.  It is possible that the package
             # name given for Activation may be an external filename like below.
@@ -77,30 +76,29 @@ class Plugin(CSMPlugin):
             for inactive_pkg in installed_inact:
                 for pkg in pkgs:
                     if pkg == inactive_pkg:
-                        packages_to_activate.add(inactive_pkg)
+                        packages_to_prepare.add(inactive_pkg)
 
-            if not packages_to_activate:
+            if not packages_to_prepare:
                 to_deactivate = " ".join(map(str, pkgs))
 
-                state_of_packages = "\nTo activate :{} \nInactive: {} \nActive: {}".format(
+                state_of_packages = "\nTo prepare :{} \nInactive: {} \nActive: {}".format(
                     to_deactivate, installed_inact, installed_act
                 )
                 self.ctx.info(state_of_packages)
                 self.ctx.error('To be activated packages not in inactive packages list.')
                 return None
             else:
-                if len(packages_to_activate) != len(packages):
-                    self.ctx.info('Packages selected for activation: {}\n'.format(" ".join(map(str, packages))) +
-                                  'Packages that are to be activated: {}'.format(" ".join(map(str,
-                                                                                              packages_to_activate))))
-                return " ".join(map(str, packages_to_activate))
+                if len(packages_to_prepare) != len(packages):
+                    self.ctx.info('Packages selected for prepare: {}\n'.format(" ".join(map(str, packages))) +
+                                  'Packages that are to be prepared: {}'.format(" ".join(map(str,
+                                                                                              packages_to_prepare))))
+                return " ".join(map(str, packages_to_prepare))
 
     def run(self):
         """
-        Performs install activate operation
+        Performs install prepare operation
         """
         check_ncs6k_release(self.ctx)
-
         operation_id = None
         if hasattr(self.ctx, 'operation_id'):
             if self.ctx.operation_id != -1:
@@ -108,23 +106,24 @@ class Plugin(CSMPlugin):
                 operation_id = self.ctx.operation_id
 
         if operation_id is None or operation_id == -1:
-            tobe_activated = " ".join(self.ctx.software_packages)
-            #if not tobe_activated:
-                #self.ctx.info("Nothing to be activated.")
-                #return True
+            #tobe_prepared = self.get_tobe_prepared_pkg_list()
+            tobe_prepared = " ".join(self.ctx.software_packages)
+            self.ctx.info("Packages to be prepared {}".format(tobe_prepared))
+            if not tobe_prepared:
+                self.ctx.info("Nothing to be activated.")
+                return True
 
         if operation_id is not None and operation_id != -1:
-            cmd = 'install activate id {}'.format(operation_id)
-        elif self.ctx.software_packages:
-                cmd = 'install activate {}'.format(tobe_activated)
+            cmd = 'install prepare id {}'.format(operation_id)
         else:
-            cmd = "install activate"
-        self.ctx.info("Activate package(s) pending")
-        self.ctx.post_status("Activate Package(s) Pending")
+            cmd = 'install prepare {}'.format(tobe_prepared)
+
+        self.ctx.info("Prepare package(s) pending")
+        self.ctx.post_status("Prepare Package(s) Pending")
 
         install_activate_deactivate(self.ctx, cmd)
 
-        self.ctx.info("Activate package(s) done")
+        self.ctx.info("Prepare package(s) done")
 
         # Refresh package and inventory information
         get_package(self.ctx)

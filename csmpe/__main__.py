@@ -99,7 +99,6 @@ class URL(click.ParamType):
 @click.group()
 def cli():
     """This script allows maintaining and executing the plugins."""
-    print "helloooo"
     pass
 
 
@@ -217,9 +216,10 @@ def jsonparser(url, tc_loc, log_dir):
         with open(tc_file) as fd:
             try:
                 data = json.load(fd)
-            except Error:
-                click.echo("ERROR! Json file %s failed to parse".format(tc_file))
+            except:
+                click.echo("ERROR! Json file {} failed to parse".format(tc_file))
                 continue
+            print("TC file : {}".format(tc_file))
             log_subdir = os.path.splitext(os.path.basename(tc_file))[0]
             log_dir = os.path.join(log_dir, time.strftime("csm-%Y%m%d%H%M%S"), log_subdir)
         
@@ -228,6 +228,7 @@ def jsonparser(url, tc_loc, log_dir):
                 ctx = InstallContext()
                 ctx.hostname = "Hostname"
                 ctx.host_urls = list(url)
+                print ctx.host_urls
                 ctx.success = False
                 ctx.tc_name = tc.get("TC")
                 if ctx.tc_name :
