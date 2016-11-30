@@ -79,7 +79,8 @@ class Host(object):
 
 @delegate("_csm", ("post_status",), ("custom_commands", "success", "operation_id", "server_repository_url",
                                      "software_packages", "hostname", "log_directory", "migration_directory",
-                                     "get_server", "get_host","nextlevel", "shell", "pattern", "tc_name", "tc_id","admin", "issu"))
+                                     "get_server", "get_host","nextlevel", "shell", "pattern", "tc_name", "tc_id",
+                                      "issu_mode","op_id"))
 @delegate("_connection", ("connect", "disconnect", "reconnect", "discovery", "send", "run_fsm", "reload"),
           ("family", "prompt", "os_type", "os_version"))
 class PluginContext(object):

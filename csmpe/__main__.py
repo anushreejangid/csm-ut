@@ -196,15 +196,16 @@ def plugin_run(url, phase, cmd, log_dir, package, repository_url, plugin_name):
 @click.option("--tc_loc", required=True, type=click.Path(), help="Test case file/dir location")
 def jsonparser(url, tc_loc, log_dir):
     oper_plugin = {
-                  "Add" : "Install Add Plugin",
-                  "Remove" : "Install Remove Plugin",
-                  "Activate" : "Install Activate Plugin",
-                  "Deactivate" : "Install Deactivate Plugin",
+                  "Add" : "Install FirexAdd Plugin",
+                  "Remove" : "Install FirexRemove Plugin",
+                  "Activate" : "Install FirexActivate Plugin",
+                  "Deactivate" : "Install FirexDeactivate Plugin",
                   "Commit" : "Install Commit Plugin",
+                  "Extract" : "Install FirexExtract Plugin",
                   "Core Check" : "Core Error Check Plugin",
                   "Node Check" : "Node Status Check Plugin",
                   "Command" : "Custom Commands Capture Plugin",
-                  "Prepare" : "Install Prepare Plugin"
+                  "Prepare" : "Install FirexPrepare Plugin"
                   }
     tc_list = []
     if os.path.isfile(tc_loc):
@@ -244,6 +245,8 @@ def jsonparser(url, tc_loc, log_dir):
                       if not plugin_name:
                           print("No plugin found for {}".format(plugin_name))
                           continue
+                      else:
+                          print("Plugin to be launched {}".format(plugin_name))
                     elif tc.get("Command"):
                         plugin_name = oper_plugin["Command"]
                         cmd  = tc.get("Command")
@@ -275,7 +278,10 @@ def jsonparser(url, tc_loc, log_dir):
         
                 ctx.nextlevel = tc.get("Nextlevel",[])
                 print ctx.nextlevel
-        
+                
+                ctx.op_id = tc.get("Op-id",0)
+                ctx.issu_mode = tc.get("Mode", None)
+
                 pm = CSMPluginManager(ctx)
                 pm.set_name_filter(plugin_name)
                 results = pm.dispatch("run")

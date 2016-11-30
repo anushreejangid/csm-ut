@@ -34,7 +34,7 @@ from csmpe.core_plugins.csm_node_status_check.exr.plugin_lib import parse_show_p
 install_error_pattern = re.compile("Error:    (.*)$", re.MULTILINE)
 
 plugin_ctx = None
-
+last_opid = 0
 
 def log_install_errors(ctx, output):
         errors = re.findall(install_error_pattern, output)
@@ -106,7 +106,7 @@ def watch_operation(ctx, op_id=0):
 
     cmd_show_install_request = "show install request"
     ctx.info("Watching the operation {} to complete".format(op_id))
-
+    ctx.op_id = op_id
     last_status = None
     finish = False
     time_tried = 0
@@ -206,7 +206,9 @@ def wait_for_reload(ctx):
                 return True
 
     # Some nodes did not come to run state
-    ctx.error("Not all nodes have came up: {}".format(output))
+
+    report_log(ctx, False, "Not all nodes have come up: {}".format(output)) 
+    ctx.error("Not all nodes have come up: {}".format(output))
     # this will never be executed
     return False
 
@@ -269,9 +271,18 @@ def get_op_id(output):
     :param output: Output from the install command
     :return: the operational ID
     """
-    result = re.search('Install operation (\d+)', output)
+    global plugin_ctx
+    result = re.search('nstall operation (\d+)', output)
     if result:
         return result.group(1)
+    else:
+        op_progress = r"User admin, Op Id (\d+)"
+        cmd_show_install_request = "show install request"
+        output = plugin_ctx.send(cmd_show_install_request, timeout=300)
+        result = re.search(op_progress, output)
+        if result:
+            plugin_ctx.op_id = result.group(1)
+            return plugin_ctx.op_id
     return -1
 
 def report_log(ctx, status, message):
@@ -280,7 +291,11 @@ def report_log(ctx, status, message):
     data['ID'] = ctx.tc_id
     data['status'] = 'Pass' if status else 'Fail'
     data['message'] = message
-    with open(os.path.join(ctx.log_directory, 'result.log'), 'a') as fd_log:
+    result_file = os.path.join(ctx.log_directory, 'result.log')
+    is_append = os.path.isfile(result_file)
+    with open(result_file, 'a') as fd_log:
+        if is_append:
+            fd_log.write(",\n")
         fd_log.write(json.dumps(data, indent=4))
     ctx.post_status("ID: {}, TC: {} :: {}".format(ctx.tc_id, ctx.tc_name, message))
 
@@ -297,7 +312,9 @@ def report_install_status(ctx, op_id):
     if re.search(failed_oper, output):
         log_install_errors(ctx, output)
         ctx.error("Operation {} failed".format(op_id))
+        return False
     ctx.info("Operation {} finished successfully".format(op_id))
+    return True
 
 def handle_aborted(fsm_ctx):
     """
@@ -318,14 +335,25 @@ def handle_non_reload_activate_deactivate(fsm_ctx):
     :return: True if successful other False
     """
     global plugin_ctx
-
+    global last_opid
+    nextlevel = plugin_ctx.nextlevel
+    if nextlevel:
+        next_level_processing(plugin_ctx)
     op_id = get_op_id(fsm_ctx.ctrl.before)
+    last_opid = op_id 
     if op_id == -1:
+        #TODO Scenario : install prepare issu with host and sysadmin no op id is 
+        #generated and it fails. Need a way to get the error message and display
+        plugin_ctx.info("got -1 as op_id")
+        status, message = match_pattern(plugin_ctx.pattern, fsm_ctx.ctrl.before)
+        report_log(plugin_ctx, status, message) 
         return False
 
     watch_operation(plugin_ctx, op_id)
-
-    return True
+    status = report_install_status(plugin_ctx, op_id)
+    if status:
+        plugin_ctx.info("Operation {} finished successfully".format(op_id))
+    return status
 
 
 def handle_reload_activate_deactivate(fsm_ctx):
@@ -334,31 +362,141 @@ def handle_reload_activate_deactivate(fsm_ctx):
     :return: True if successful other False
     """
     global plugin_ctx
-
+    nextlevel = plugin_ctx.nextlevel
+    if nextlevel:
+        next_level_processing(plugin_ctx)
     op_id = get_op_id(fsm_ctx.ctrl.before)
     if op_id == -1:
+        status, message = match_pattern(plugin_ctx.pattern, fsm_ctx.ctrl.before)
+        report_log(plugin_ctx, status, message) 
         return False
-
+    else:
+        plugin_ctx.info("Operation id is {}".format(op_id))
     try:
         watch_operation(plugin_ctx, op_id)
     except plugin_ctx.CommandTimeoutError:
-        # The device already started the reload
+        plugin_ctx.info("The device already started the reload")
         pass
 
     success = wait_for_reload(plugin_ctx)
     if not success:
+        report_log(ctx, False, "Reload or boot failure") 
         plugin_ctx.error("Reload or boot failure")
         return
 
-    plugin_ctx.info("Operation {} finished successfully".format(op_id))
-
-    return True
+    #Validate if the operation was really successful
+    if plugin_ctx.shell == "Admin" and plugin_ctx.issu_mode:
+        output = ctx.send("admin")
+    status = report_install_status(plugin_ctx, op_id)
+    if plugin_ctx.shell == "Admin" and plugin_ctx.issu_mode:
+        output = ctx.send("exit")    
+    if status:
+        plugin_ctx.info("Operation {} finished successfully".format(op_id))
+    return status
 
 
 def no_impact_warning(fsm_ctx):
     plugin_ctx.warning("This was a NO IMPACT OPERATION. Packages are already active on device.")
+    nextlevel = plugin_ctx.nextlevel
+    if nextlevel:
+        next_level_processing(plugin_ctx)
     return True
 
+def handle_reload_cmd(fsm_ctx):
+    global plugin_ctx
+    plugin_ctx.send("yes", timeout=30)
+    nextlevel = plugin_ctx.nextlevel
+    if nextlevel:
+        next_level_processing(plugin_ctx)
+    retval = handle_reload_activate_deactivate(fsm_ctx)
+    return retval
+
+def handle_non_reload_cmd(fsm_ctx):
+    global plugin_ctx
+    nextlevel = plugin_ctx.nextlevel
+    if nextlevel:
+        next_level_processing(plugin_ctx)   
+    retval = handle_non_reload_activate_deactivate(fsm_ctx)
+    plugin_ctx.op_id = last_opid
+    return retval
+
+def handle_done(self, fsm_ctx):
+    return True
+
+def handle_hw_modify_cmd(fsm_ctx):
+    op_id = get_op_id(fsm_ctx.ctrl.before)
+    if op_id == -1:
+        return False
+    ctx.send("yes\r\n", timeout=30)
+    # give hw 5 mins to stabilize
+
+    time.sleep(300)
+
+    ctx.info("Operation {} finished successfully".format(self.op_id))
+    return True
+
+def handle_proceed_cmd(fsm_ctx):
+    global plugin_ctx
+    plugin_ctx.send("yes", timeout=30)
+    nextlevel = plugin_ctx.nextlevel
+    if nextlevel:
+        next_level_processing(plugin_ctx)   
+    retval = handle_non_reload_activate_deactivate(fsm_ctx)
+    plugin_ctx.op_id = last_opid
+    return retval
+
+def execute_cmd(ctx, cmd):
+    global plugin_ctx
+    plugin_ctx = ctx
+
+    ABORTED = re.compile("aborted")
+    CONTINUE_IN_BACKGROUND = re.compile("Install operation will continue in the background")
+    REBOOT_PROMPT = re.compile("This install operation will (?:reboot|reload) the sdr, continue")
+    RUN_PROMPT = re.compile("#")
+    DONE_PROMPT = re.compile("DONE")
+    PROCEED_PROMPT = re.compile("Do you want to proceed")
+    NO_IMPACT = re.compile("NO IMPACT OPERATION")
+    HW_PROMPT = re.compile("hardware module ?")
+
+    events = [CONTINUE_IN_BACKGROUND, REBOOT_PROMPT, DONE_PROMPT, PROCEED_PROMPT, ABORTED, NO_IMPACT, RUN_PROMPT, HW_PROMPT]
+    transitions = [
+        (CONTINUE_IN_BACKGROUND, [0], -1, handle_non_reload_activate_deactivate, 100),
+        (REBOOT_PROMPT, [0], -1, handle_reload_cmd, 100),
+        (NO_IMPACT, [0], -1, no_impact_warning, 20),
+        (RUN_PROMPT, [0], -1, handle_non_reload_cmd, 100),
+        (DONE_PROMPT, [0], -1,handle_done, 100),
+        (PROCEED_PROMPT, [0], -1, handle_proceed_cmd, 100),
+        (HW_PROMPT, [0], -1, handle_hw_modify_cmd, 100),
+        (ABORTED, [0], -1, handle_aborted, 100),
+    ]
+
+    if not ctx.run_fsm("generic cmd", cmd, events, transitions, timeout=100):
+        ctx.error("Failed: {}".format(cmd))
+        return False
+    return True
+
+def get_pkgs(ctx, id):
+    cmd = "show install log " + str(id)
+    paragraph = ctx.send(cmd, timeout=30)
+    ctx.info(paragraph)
+    lines = []
+    for line in paragraph.split("\n"):
+        lines.append(line[16:])
+        st = 0
+        end = 0
+
+    for idx, line in enumerate(lines):
+        if "Packages skipped" in line:
+            st = idx
+        if "Packages added:" in line:
+            st = idx
+        if "finished successfully" in line:
+            end = idx
+            break
+        if "completed successfully" in line:
+            end = idx
+            break
+    return lines[st+1:end]
 
 def install_activate_deactivate(ctx, cmd):
     """
@@ -494,4 +632,43 @@ def next_level_processing(ctx):
             if pattern:
                 status, message = match_pattern(pattern, cmd_out)
                 report_log(ctx, status, message) 
+
+def checklist_in_cmd(ctx, cmd, pkg_list):
+    """return the no of packages present in output of executing cmd"""
+    """ it is caller's responsibility to swith to admin mode if required"""
+    present = 0
+    paragraph = ctx.send(cmd, timeout=60)
+    for pkg in pkg_list:
+        if pkg in paragraph:
+            present += 1
+    return present
+
+def validate_is_active(ctx, pkg_list):
+    return checklist_in_cmd(ctx, "show install active", pkg_list)
+
+def validate_is_inactive(ctx, pkg_list):
+    return checklist_in_cmd(ctx, "show install inactive", pkg_list)
+
+
+def validate_is_committed(ctx, pkg_list):
+    return checklist_in_cmd(ctx, "show install committed", pkg_list)
+
+def commit_verify(ctx, pkg_list):
+    try:
+        result = execute_cmd(ctx, "install commit")
+    except PluginError:
+        pass
+    sleep(60)
+    return validate_is_committed(ctx, pkg_list)
+
+def show_cmd(ctx, cmd):
+    result = ctx.send(cmd, timeout=120)
+    if not result:
+        ctx.info("could not send show cmd")
+
+def generic_show(ctx):
+    show_cmd(ctx, "show install active")
+    show_cmd(ctx, "show install inactive")
+    show_cmd(ctx, "show install repository all")
+    show_cmd(ctx, "show install superseded")
 
