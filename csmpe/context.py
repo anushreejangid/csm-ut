@@ -50,6 +50,9 @@ class InstallContext(object):
     _storage = {}
     _custom_commands = ["show isis neighbor", "show ospf neighbor", "show bgp summary", "show install inactive summary",
         "show install active summary"]
+    admin_mode = False
+    issu_mode = False
+    pkg_id = 0
 
     def __init__(self):
         self.hostname = "Hostname"
@@ -78,9 +81,9 @@ class Host(object):
 
 
 @delegate("_csm", ("post_status",), ("custom_commands", "success", "operation_id", "server_repository_url",
-                                     "software_packages", "hostname", "log_directory", "migration_directory",
+                                     "software_packages", "pkg_id", "hostname", "log_directory", "migration_directory",
                                      "get_server", "get_host","nextlevel", "shell", "pattern", "tc_name", "tc_id",
-                                      "issu_mode","op_id"))
+                                      "admin_mode", "issu_mode","op_id"))
 @delegate("_connection", ("connect", "disconnect", "reconnect", "discovery", "send", "run_fsm", "reload"),
           ("family", "prompt", "os_type", "os_version"))
 class PluginContext(object):
@@ -90,6 +93,10 @@ class PluginContext(object):
     def __init__(self, csm=None):
         self._csm = csm
         self.current_plugin = ""
+        self.admin_mode = csm.admin_mode
+        self.issu_mode = csm.issu_mode
+        self.pkg_id = csm.pkg_id
+
         if csm is not None:
             self._connection = condoor.Connection(
                 self._csm.hostname,

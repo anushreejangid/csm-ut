@@ -26,7 +26,7 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 # THE POSSIBILITY OF SUCH DAMAGE.
 # =============================================================================
-
+from __future__ import absolute_import
 try:
     import click
 except ImportError:
@@ -144,15 +144,18 @@ def plugin_list(platform, phase, os, detail, brief):
               help="An install phase to run the plugin for. If not path specified then default /tmp directory is used.")
 @click.option("--package", default=[], multiple=True,
               help="Package for install operations. This package option can be repeated to provide multiple packages.")
+@click.option("--id", default=0, multiple=False,
+              help="Package id for install operations.")
 @click.option("--repository_url", default=None,
               help="The package repository URL. (i.e. tftp://server/dir")
 @click.argument("plugin_name", required=False, default=None)
-def plugin_run(url, phase, cmd, log_dir, package, repository_url, plugin_name):
+def plugin_run(url, phase, cmd, log_dir, package, id,  repository_url, plugin_name):
 
     ctx = InstallContext()
     ctx.hostname = "Hostname"
     ctx.host_urls = list(url)
     ctx.success = False
+    ctx.pkg_id = 0
 
     ctx.requested_action = phase
     ctx.log_directory = log_dir
@@ -170,6 +173,7 @@ def plugin_run(url, phase, cmd, log_dir, package, repository_url, plugin_name):
     ctx.log_level = logging.DEBUG
     ctx.software_packages = list(package)
     ctx.server_repository_url = repository_url
+    ctx.pkg_id = id
 
     if cmd:
         ctx.custom_commands = list(cmd)

@@ -27,6 +27,7 @@
 from csmpe.plugins import CSMPlugin
 from install import check_ncs6k_release
 from install import execute_cmd
+from install import wait_for_prompt
 from install import generic_show
 
 
@@ -53,17 +54,17 @@ class Plugin(CSMPlugin):
 
     def run(self):
         check_ncs6k_release(self.ctx)
-
+        result = False
         packages =  " ".join(self.ctx.software_packages)
         if packages is None:
             self.ctx.error("No package list provided")
             return False
-
+	wait_for_prompt(self.ctx)
         if self.ctx.shell == "Admin":
             self.ctx.info("Switching to admin")
             self.ctx.send("admin", timeout=30)
 
-	    result = self.extract(packages)
+	result = self.extract(packages)
 
         if self.ctx.shell == "Admin":
             self.ctx.info("Exiting admin mode")

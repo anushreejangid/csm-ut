@@ -27,6 +27,7 @@
 from csmpe.plugins import CSMPlugin
 from install import check_ncs6k_release
 from install import execute_cmd
+from install import wait_for_prompt
 from install import generic_show
 
 
@@ -67,15 +68,26 @@ class Plugin(CSMPlugin):
     def run(self):
         check_ncs6k_release(self.ctx)
 
-        packages = self.ctx.software_packages
+        packages = " ".join(self.ctx.software_packages)
         pkg_id = self.ctx.pkg_id
 
         if self.ctx.shell == "Admin":
             self.ctx.send("admin", timeout=30)
+        if self.ctx.shell == "Admin":
+            self.ctx.send("admin", timeout=30)
+	wait_for_prompt(self.ctx)
         if packages:
+            try:
 	        result = self.remove(packages)
+            except:
+                result = False
+                pass
         else:
+            try:
 	        result = self.remove_id(pkg_id)
+            except:
+                result = False
+                pass
         if self.ctx.shell == "Admin":
             self.ctx.send("exit", timeout=30)
         self.ctx.send("exit", timeout=30)

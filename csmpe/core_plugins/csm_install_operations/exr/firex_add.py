@@ -26,6 +26,7 @@
 
 from csmpe.plugins import CSMPlugin
 from install import execute_cmd
+from install import wait_for_prompt
 from install import check_ncs6k_release
 from install import get_pkgs
 
@@ -40,6 +41,7 @@ class Plugin(CSMPlugin):
     op_id = 0
 
     def add(self):
+        result = False
         server_repository_url = self.ctx.server_repository_url
         packages = self.ctx.software_packages
         if self.ctx.family == 'NCS6K':
@@ -56,7 +58,14 @@ class Plugin(CSMPlugin):
             self.ctx.error("None of the selected package(s) has an acceptable file extension.")
         cmd = "install add source {} {} ".format(server_repository_url, s_packages)
         self.ctx.info("Execute cmd: {}".format(cmd))
-        result = execute_cmd(self.ctx, cmd)
+        try:
+            result = execute_cmd(self.ctx, cmd)
+            self.ctx.info("execute_cmd() returned")
+            self.ctx.info(result)
+        except:
+            self.ctx.info("got an exception")
+            result = False
+            pass
         if result:
             pkg_id = self.ctx.op_id
             if has_tar is True:
@@ -87,6 +96,7 @@ class Plugin(CSMPlugin):
         if self.ctx.shell == "Admin":
             self.ctx.info("Switching to admin mode")
             self.ctx.send("admin", timeout=30)
+	wait_for_prompt(self.ctx)
         pkg_list = self.add()
         self.ctx.info(pkg_list)
         if self.ctx.shell == "Admin":

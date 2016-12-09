@@ -27,6 +27,7 @@
 from csmpe.plugins import CSMPlugin
 from install import check_ncs6k_release
 from install import execute_cmd
+from install import wait_for_prompt
 
 
 
@@ -74,21 +75,36 @@ class Plugin(CSMPlugin):
         self.ctx.post_status("Executing Prepare plugin")
         packages = " ".join(self.ctx.software_packages)
         pkg_id = None
+        
         if hasattr(self.ctx , 'pkg_id'):
             pkg_id = self.ctx.pkg_id
 
         if self.ctx.shell == "Admin":
             self.ctx.info("Switching to admin mode")
             self.ctx.send("admin", timeout=30)
+        if self.ctx.shell == "Admin":
+            self.ctx.send("admin", timeout=30)
+	wait_for_prompt(self.ctx)
+
         if packages:
             self.ctx.info("Prepare packages specified explicitly")
-            result = self.prepare(packages)
+            try:
+                result = self.prepare(packages)
+            except:
+                self.ctx.info("prepare packages failed")
+                pass
+                return  False
         elif pkg_id:
             self.ctx.info("Prepare packages based on id {}".format(pkg_id))
-            result = self.prepare_id(pkg_id)
+            try:
+                result = self.prepare_id(pkg_id)
+            except:
+                self.ctx.info("prepare package id failed")
+                pass
+                return False
         else:
             self.ctx.error("No package list provided")
-            return
+            return False
 
         if self.ctx.shell == "Admin":
             self.ctx.send("exit", timeout=30)

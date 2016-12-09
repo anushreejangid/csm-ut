@@ -103,7 +103,7 @@ def watch_operation(ctx, op_id=0):
     # or "The install service operation 9 is 40% complete" or "The install add operation 9 is 40% complete" and etc.
     op_progress = r"The install \w*?\s?operation {} is (\d+)% complete".format(op_id)
     success = "Install operation {} finished successfully".format(op_id)
-
+    admin_success = "Install operation {} completed successfully".format(op_id)
     cmd_show_install_request = "show install request"
     ctx.info("Watching the operation {} to complete".format(op_id))
     ctx.op_id = op_id
@@ -114,7 +114,8 @@ def watch_operation(ctx, op_id=0):
         try:
             try:
                 # this is to catch the successful operation as soon as possible
-                ctx.send("", wait_for_string=success, timeout=20)
+#                ctx.send("", wait_for_string=success, timeout=20)
+                ctx.send("", wait_for_string=admin_success, timeout=20)
                 finish = True
             except ctx.CommandTimeoutError:
                 pass
@@ -344,7 +345,7 @@ def handle_non_reload_activate_deactivate(fsm_ctx):
     if op_id == -1:
         #TODO Scenario : install prepare issu with host and sysadmin no op id is 
         #generated and it fails. Need a way to get the error message and display
-        plugin_ctx.info("got -1 as op_id")
+        plugin_ctx.error("got -1 as op_id")
         status, message = match_pattern(plugin_ctx.pattern, fsm_ctx.ctrl.before)
         report_log(plugin_ctx, status, message) 
         return False
@@ -382,18 +383,17 @@ def handle_reload_activate_deactivate(fsm_ctx):
     if not success:
         report_log(ctx, False, "Reload or boot failure") 
         plugin_ctx.error("Reload or boot failure")
-        return
+        return False
 
     #Validate if the operation was really successful
     if plugin_ctx.shell == "Admin" and plugin_ctx.issu_mode:
-        output = ctx.send("admin")
+        output = plugin_ctx.send("admin", timeout=30)
     status = report_install_status(plugin_ctx, op_id)
     if plugin_ctx.shell == "Admin" and plugin_ctx.issu_mode:
-        output = ctx.send("exit")    
+        output = plugin_ctx.send("exit", timeout=30)    
     if status:
         plugin_ctx.info("Operation {} finished successfully".format(op_id))
     return status
-
 
 def no_impact_warning(fsm_ctx):
     plugin_ctx.warning("This was a NO IMPACT OPERATION. Packages are already active on device.")
@@ -401,24 +401,6 @@ def no_impact_warning(fsm_ctx):
     if nextlevel:
         next_level_processing(plugin_ctx)
     return True
-
-def handle_reload_cmd(fsm_ctx):
-    global plugin_ctx
-    plugin_ctx.send("yes", timeout=30)
-    nextlevel = plugin_ctx.nextlevel
-    if nextlevel:
-        next_level_processing(plugin_ctx)
-    retval = handle_reload_activate_deactivate(fsm_ctx)
-    return retval
-
-def handle_non_reload_cmd(fsm_ctx):
-    global plugin_ctx
-    nextlevel = plugin_ctx.nextlevel
-    if nextlevel:
-        next_level_processing(plugin_ctx)   
-    retval = handle_non_reload_activate_deactivate(fsm_ctx)
-    plugin_ctx.op_id = last_opid
-    return retval
 
 def handle_done(self, fsm_ctx):
     return True
@@ -433,46 +415,6 @@ def handle_hw_modify_cmd(fsm_ctx):
     time.sleep(300)
 
     ctx.info("Operation {} finished successfully".format(self.op_id))
-    return True
-
-def handle_proceed_cmd(fsm_ctx):
-    global plugin_ctx
-    plugin_ctx.send("yes", timeout=30)
-    nextlevel = plugin_ctx.nextlevel
-    if nextlevel:
-        next_level_processing(plugin_ctx)   
-    retval = handle_non_reload_activate_deactivate(fsm_ctx)
-    plugin_ctx.op_id = last_opid
-    return retval
-
-def execute_cmd(ctx, cmd):
-    global plugin_ctx
-    plugin_ctx = ctx
-
-    ABORTED = re.compile("aborted")
-    CONTINUE_IN_BACKGROUND = re.compile("Install operation will continue in the background")
-    REBOOT_PROMPT = re.compile("This install operation will (?:reboot|reload) the sdr, continue")
-    RUN_PROMPT = re.compile("#")
-    DONE_PROMPT = re.compile("DONE")
-    PROCEED_PROMPT = re.compile("Do you want to proceed")
-    NO_IMPACT = re.compile("NO IMPACT OPERATION")
-    HW_PROMPT = re.compile("hardware module ?")
-
-    events = [CONTINUE_IN_BACKGROUND, REBOOT_PROMPT, DONE_PROMPT, PROCEED_PROMPT, ABORTED, NO_IMPACT, RUN_PROMPT, HW_PROMPT]
-    transitions = [
-        (CONTINUE_IN_BACKGROUND, [0], -1, handle_non_reload_activate_deactivate, 100),
-        (REBOOT_PROMPT, [0], -1, handle_reload_cmd, 100),
-        (NO_IMPACT, [0], -1, no_impact_warning, 20),
-        (RUN_PROMPT, [0], -1, handle_non_reload_cmd, 100),
-        (DONE_PROMPT, [0], -1,handle_done, 100),
-        (PROCEED_PROMPT, [0], -1, handle_proceed_cmd, 100),
-        (HW_PROMPT, [0], -1, handle_hw_modify_cmd, 100),
-        (ABORTED, [0], -1, handle_aborted, 100),
-    ]
-
-    if not ctx.run_fsm("generic cmd", cmd, events, transitions, timeout=100):
-        ctx.error("Failed: {}".format(cmd))
-        return False
     return True
 
 def get_pkgs(ctx, id):
@@ -672,3 +614,206 @@ def generic_show(ctx):
     show_cmd(ctx, "show install repository all")
     show_cmd(ctx, "show install superseded")
 
+def get_sysadmin_op_id(output):
+    global plugin_ctx
+    result = re.search('Op Id (\d+)', output)
+    if result:
+        return result.group(1)
+
+def handle_admin_non_reload(fsm_ctx):
+    global plugin_ctx
+    op_id = 0
+    cmd_show_install_request = "show install request"
+    while op_id <= 0:
+        output = ""
+        try:
+            output = plugin_ctx.send(cmd_show_install_request, timeout=30)
+        except plugin_ctx.CommandTimeoutError:
+            pass
+            continue
+        op_id = get_sysadmin_op_id(output)
+    try:
+        watch_operation(plugin_ctx, op_id)
+    except plugin_ctx.CommandTimeoutError:
+        plugin_ctx.info("handle_admin_non_reload() got an exception when waiting for op to complete")
+        pass
+    return True
+
+def handle_admin_reload(fsm_ctx):
+    global plugin_ctx
+    plugin_ctx.send("yes", timeout=30)
+    cmd_show_install_request = "show install request"
+    op_id = 0
+    while op_id <= 0:
+        output = plugin_ctx.send(cmd_show_install_request, timeout=30)
+        op_id = get_sysadmin_op_id(output)
+    try:
+        watch_operation(plugin_ctx, op_id)
+    except plugin_ctx.CommandTimeoutError:
+        plugin_ctx.info("The device already started the reload")
+        pass
+    status = report_install_status(plugin_ctx, op_id)
+    success = wait_for_reload(plugin_ctx)
+    if not success:
+        report_log(ctx, False, "Reload or boot failure")
+        plugin_ctx.error("Reload or boot failure")
+        return False
+
+    if plugin_ctx.shell == "Admin":
+        output = plugin_ctx.send("admin", timeout=30)
+    return status
+
+def handle_admin_reload_activate_deactivate(fsm_ctx):
+    global plugin_ctx
+    fsm_ctx.ctrl.sendline("yes", timeout=30)
+    op_id = get_op_id(fsm_ctx.ctrl.before)
+    return True
+
+
+def handle_reload_cmd(fsm_ctx):
+    """This handles a reload requiring a yes to start the op"""
+    global plugin_ctx
+    plugin_ctx.send("yes", timeout=30)
+    nextlevel = plugin_ctx.nextlevel
+    if nextlevel:
+        next_level_processing(plugin_ctx)
+    cmd_show_install_request = "show install request"
+    op_id = 0
+    while op_id <= 0:
+        output = plugin_ctx.send(cmd_show_install_request, timeout=30)
+        op_id = get_op_id(output)
+    try:
+        watch_operation(plugin_ctx, op_id)
+    except plugin_ctx.CommandTimeoutError:
+        plugin_ctx.info("The device already started the reload")
+        pass
+    status = report_install_status(plugin_ctx, op_id)
+    success = wait_for_reload(plugin_ctx)
+    if not success:
+        report_log(ctx, False, "Reload or boot failure")
+        plugin_ctx.error("Reload or boot failure")
+        return False
+    return success
+
+def execute_cmd(ctx, cmd):
+    """
+    Abort Situation:
+    RP/0/RP0/CPU0:Deploy#install activate ncs6k-5.2.5.CSCuz65240-1.0.0
+
+    Jun 02 20:19:31 Install operation 8 started by root:
+      install activate pkg ncs6k-5.2.5.CSCuz65240-1.0.0
+    Jun 02 20:19:31 Package list:
+    Jun 02 20:19:31     ncs6k-5.2.5.CSCuz65240-1.0.0
+    Jun 02 20:19:31     ncs6k-5.2.5.47I.CSCuy47880-0.0.4.i
+    Jun 02 20:19:31     ncs6k-5.2.5.CSCux82987-1.0.0
+    Jun 02 20:19:38 Install operation 8 aborted
+
+    ------------------------------------------------------------------------------------------------------------
+    Non-Reload Situation:
+
+    RP/0/RP0/CPU0:Deploy#install deactivate ncs6k-5.2.5.CSCuz65240-1.0.0
+    May 31 20:14:14 Install operation 3 started by root:
+      install deactivate pkg ncs6k-5.2.5.CSCuz65240-1.0.0
+    May 31 20:14:14 Package list:
+    May 31 20:14:14     ncs6k-5.2.5.CSCuz65240-1.0.0
+    May 31 20:14:20 Install operation will continue in the background (may or may not be displayed)
+
+    <--- Time Lapses --->
+
+    RP/0/RP0/CPU0:Deploy#May 31 20:15:10 Install operation 3 finished successfully
+
+    ------------------------------------------------------------------------------------------------------------
+    Reload Situation 1:
+
+    RP/0/RP0/CPU0:Deploy#install activate ncs6k-5.2.5.CSCux82987-1.0.0
+    May 31 20:17:08 Install operation 4 started by root:
+      install activate pkg ncs6k-5.2.5.CSCux82987-1.0.0
+    May 31 20:17:08 Package list:
+    May 31 20:17:08     ncs6k-5.2.5.CSCux82987-1.0.0
+
+    <--- Time Lapses --->
+
+    This install operation will reboot the sdr, continue?
+     [yes/no]:[yes] <Hit Enter>
+    May 31 20:17:47 Install operation will continue in the background
+
+    <--- Time Lapses --->
+
+    RP/0/RP0/CPU0:Deploy#May 31 20:18:44 Install operation 4 finished successfully
+
+    <--- Router Starts Reloading --->
+
+    Connection closed by foreign host.
+
+    Reload Situation 2:
+
+    RP/0/RSP0/CPU0:ios#install activate id 25
+    Jun 09 15:49:15 Install operation 27 started by root:
+    install activate id 25
+    Jun 09 15:49:15 Package list:
+    Jun 09 15:49:15     asr9k-sysadmin-system-6.1.1.17-r61116I.CSCcv44444.x86_64
+    Jun 09 15:49:15     asr9k-os-supp-64-3.1.0.1-r61116I.CSCxr90021.x86_64
+    Jun 09 15:49:15     asr9k-base-64-4.0.0.2-r61116I.CSCxr90014.x86_64
+    Jun 09 15:49:15     asr9k-sysadmin-topo-6.1.1.17-r61116I.CSCcv55555.x86_64
+
+    This install operation will reload the sdr, continue?
+    [yes/no]:[yes] <Hit Enter>
+    Jun 09 15:49:26 Install operation will continue in the background
+    RP/0/RSP0/CPU0:ios#
+
+    <--- Time Lapses --->
+
+    RP/0/RSP0/CPU0:ios#Jun 09 15:53:51 Install operation 27 finished successfully
+
+
+
+    """
+    global plugin_ctx
+    plugin_ctx = ctx
+
+    ABORTED = re.compile("aborted")
+
+    # Seeing this message without the reboot prompt indicates a non-reload situation
+    CONTINUE_IN_BACKGROUND = re.compile("Install operation will continue in the background")
+    CONTINUE_ASYNCHRONOUSLY = re.compile("will continue asynchronously")
+
+    REBOOT_PROMPT = re.compile("This install operation will (?:reboot|reload) the sdr, continue")
+    ADMIN_REBOOT_PROMPT = re.compile("Do you want to proceed")
+    ISSU_PROMPT = re.compile("This install operation will start the issu")
+    RUN_PROMPT = re.compile("#")
+    HW_PROMPT = re.compile("hardware module ?")
+    NO_IMPACT = re.compile("NO IMPACT OPERATION")
+    DONE_PROMPT = re.compile("DONE")
+
+    events = [CONTINUE_IN_BACKGROUND, CONTINUE_ASYNCHRONOUSLY, DONE_PROMPT, ISSU_PROMPT, REBOOT_PROMPT, HW_PROMPT, ADMIN_REBOOT_PROMPT,ABORTED, NO_IMPACT, RUN_PROMPT]
+    transitions = [
+        (CONTINUE_IN_BACKGROUND, [0], -1, handle_non_reload_activate_deactivate, 100),
+        (CONTINUE_ASYNCHRONOUSLY, [0], -1, handle_admin_non_reload, 100),
+        (REBOOT_PROMPT, [0], -1, handle_reload_activate_deactivate, 100),
+        (ADMIN_REBOOT_PROMPT, [0], -1, handle_admin_reload, 100),
+        (ISSU_PROMPT, [0], -1, handle_reload_cmd, 20),
+        (NO_IMPACT, [0], -1, no_impact_warning, 20),
+        (RUN_PROMPT, [0], -1, handle_non_reload_activate_deactivate, 100),
+        (HW_PROMPT, [0], -1, handle_hw_modify_cmd, 100),
+        (DONE_PROMPT, [0], -1,handle_done, 100),
+        (ABORTED, [0], -1, handle_aborted, 100),
+    ]
+
+    if not ctx.run_fsm("activate or deactivate", cmd, events, transitions, timeout=100):
+        ctx.error("Failed: {}".format(cmd))
+        return False
+    return True
+
+def wait_for_prompt(ctx):
+    proceed = False
+    while not proceed:
+        ctx.info("checking if pending operation in progress")
+	try:
+            output = ctx.send(" show install request", timeout=30)
+        except ctx.CommandTimeoutError:
+            pass
+        if "No install operation in progress" in output:
+            proceed = True
+        if not proceed:
+            time.sleep(30)
+    return

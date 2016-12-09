@@ -27,6 +27,7 @@
 from csmpe.plugins import CSMPlugin
 from install import check_ncs6k_release
 from install import execute_cmd
+from install import wait_for_prompt
 
 
 
@@ -49,8 +50,10 @@ class Plugin(CSMPlugin):
     def run(self):
         check_ncs6k_release(self.ctx)
         if self.ctx.shell == "Admin":
+            self.ctx.info("Switching to admin mode")
             self.ctx.send("admin", timeout=30)
-	    result = self.clean()
+        wait_for_prompt(self.ctx)
+        result = self.clean()
         if self.ctx.shell == "Admin":
             self.ctx.send("exit", timeout=30)
         self.ctx.send("exit", timeout=30)

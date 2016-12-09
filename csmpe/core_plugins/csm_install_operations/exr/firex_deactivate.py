@@ -27,9 +27,10 @@
 from csmpe.plugins import CSMPlugin
 from install import check_ncs6k_release
 from install import execute_cmd
+from install import wait_for_prompt
 from install import validate_is_inactive
 #from time import sleep
-
+import sys, traceback
 
 
 class Plugin(CSMPlugin):
@@ -55,7 +56,7 @@ class Plugin(CSMPlugin):
         else:
             cmd = "install deactivate {} ".format(pkgs)
         result = execute_cmd(self.ctx, cmd)
-#        sleep(60)
+        pkg_list = pkgs.split(' ')
         revert_to_ios = False
         if self.ctx.shell != "Admin":
             for pkg in pkg_list:
@@ -76,17 +77,29 @@ class Plugin(CSMPlugin):
         check_ncs6k_release(self.ctx)
 
         packages = " ".join(self.ctx.software_packages)
-        pkg_id = self.ctx.pkg_id
+        if hasattr(self.ctx, 'pkg_id'):
+            pkg_id = self.ctx.pkg_id
 #        if packages is None:
 #            self.ctx.error("No package list provided")
 #            return
 
-        if self.ctx.admin_mode:
+        if self.ctx.shell == "Admin":
             self.ctx.send("admin", timeout=30)
-        if pkg_id:
-	       self.deactivate_id(pkg_id)
-        else:
-	       self.deactivate(packages)
+	wait_for_prompt(self.ctx)
+        try:
+            if pkg_id:
+	        self.deactivate_id(pkg_id)
+            else:
+	        self.deactivate(packages)
+        except:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+	    self.ctx.info(exc_traceback)
+	    traceback.print_exception(exc_type, exc_value, exc_traceback,
+                              limit=2, file=sys.stdout)
+            traceback.print_exc(file=open("/tmp/errlog.txt","a"))
+            self.ctx.info("deactivation failed")
+            pass
+            return False
         if self.ctx.shell == "Admin":
             self.ctx.send("exit", timeout=30)
         self.ctx.send("exit", timeout=30)

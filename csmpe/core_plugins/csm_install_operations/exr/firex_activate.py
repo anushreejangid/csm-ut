@@ -28,8 +28,9 @@ from csmpe.plugins import CSMPlugin
 from install import check_ncs6k_release
 from install import execute_cmd
 from install import validate_is_active
+from install import wait_for_prompt
 #from time import sleep
-
+import sys, traceback
 
 
 class Plugin(CSMPlugin):
@@ -66,7 +67,7 @@ class Plugin(CSMPlugin):
         else:
             cmd = "install activate {} ".format(pkgs)
         result = execute_cmd(self.ctx, cmd)
-#        sleep(60)
+        sleep(60)
         revert_to_ios = False
         if self.ctx.shell != "Admin":
             for pkg in pkg_list:
@@ -84,7 +85,7 @@ class Plugin(CSMPlugin):
             return False
         self.ctx.info("Activate package(s) passed")
         self.ctx.post_status("Activate package(s) passed")
-        return True
+        return result
 
     def run(self):
         check_ncs6k_release(self.ctx)
@@ -94,15 +95,25 @@ class Plugin(CSMPlugin):
         if hasattr(self.ctx, 'pkg_id'):
             pkg_id = self.ctx.pkg_id
         if self.ctx.shell == "Admin":
-            self.ctx.info("Switching to admin")
             self.ctx.send("admin", timeout=30)
-        if packages:
-	       result = self.activate_pkgs(packages)
-        elif pkg_id:
-	       result = self.activate_id(pkg_id)
-        else:
-	       result = self.activate()
-
+	wait_for_prompt(self.ctx)
+        result = False
+        try:
+             if packages:
+	         result = self.activate_pkgs(packages)
+             elif pkg_id:
+	         result = self.activate_id(pkg_id)
+             else:
+	         result = self.activate()
+        except:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            self.ctx.info(exc_traceback)
+            traceback.print_exception(exc_type, exc_value, exc_traceback,
+                              limit=2, file=sys.stdout)
+            traceback.print_exc(file=open("/tmp/errlog.txt","a"))
+            self.ctx.info("activation failed")
+            pass
+            return False
         if self.ctx.shell == "Admin":
             self.ctx.info("Exiting from admin")
             self.ctx.send("exit", timeout=30)
