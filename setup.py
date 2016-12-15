@@ -109,6 +109,7 @@ setup(
             #'{} = csmpe.core_plugins.csm_install_operations.exr.deactivate:Plugin'.format(uuid4()),
             #'{} = csmpe.core_plugins.csm_install_operations.exr.remove:Plugin'.format(uuid4()),
             #'{} = csmpe.core_plugins.csm_install_operations.exr.prepare:Plugin'.format(uuid4()),
+            '{} = csmpe.core_plugins.csm_install_operations.exr.firex_flow1:Plugin'.format(uuid4()),
             '{} = csmpe.core_plugins.csm_install_operations.exr.firex_add:Plugin'.format(uuid4()),
             '{} = csmpe.core_plugins.csm_install_operations.exr.firex_extract:Plugin'.format(uuid4()),
             '{} = csmpe.core_plugins.csm_install_operations.exr.firex_remove:Plugin'.format(uuid4()),

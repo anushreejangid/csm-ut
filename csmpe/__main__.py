@@ -209,14 +209,15 @@ def jsonparser(url, tc_loc, log_dir):
                   "Core Check" : "Core Error Check Plugin",
                   "Node Check" : "Node Status Check Plugin",
                   "Command" : "Custom Commands Capture Plugin",
-                  "Prepare" : "Install FirexPrepare Plugin"
+                  "Prepare" : "Install FirexPrepare Plugin",
+                  "Flow1" : "Install FirexFlow1 Plugin"
                   }
     tc_list = []
     if os.path.isfile(tc_loc):
         tc_list.append(tc_loc)
     elif os.path.isdir(tc_loc):
         tc_list = [os.path.join(tc_loc,f) for f in os.listdir(tc_loc) if f.endswith(".json")]
-    
+
     for tc_file in tc_list:
         with open(tc_file) as fd:
             try:
@@ -227,7 +228,7 @@ def jsonparser(url, tc_loc, log_dir):
             print("TC file : {}".format(tc_file))
             log_subdir = os.path.splitext(os.path.basename(tc_file))[0]
             log_dir = os.path.join(log_dir, time.strftime("csm-%Y%m%d%H%M%S"), log_subdir)
-        
+
             for idx, tc in enumerate(data):
                 #url, phase, cmd, log_dir, package, repository_url, plugin_name
                 ctx = InstallContext()
@@ -241,7 +242,7 @@ def jsonparser(url, tc_loc, log_dir):
                 ctx.tc_id = idx + 1
                 ctx.shell = tc.get("Shell")
                 ctx.requested_action = []
-                
+     
                 if ctx.shell:
                     operation = tc.get("Operation")
                     if operation:

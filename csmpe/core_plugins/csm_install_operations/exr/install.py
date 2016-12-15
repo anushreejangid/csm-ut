@@ -539,6 +539,12 @@ def install_activate_deactivate(ctx, cmd):
     if not ctx.run_fsm("activate or deactivate", cmd, events, transitions, timeout=100):
         ctx.error("Failed: {}".format(cmd))
 
+def verify_pkgs(ctx):
+    result = execute_cmd(ctx, "install verify packages")
+    if result:
+        return True
+    ctx.error("install verification failed")
+    return False
 
 def send_admin_cmd(ctx, cmd):
     ctx.send("admin")
@@ -600,7 +606,7 @@ def commit_verify(ctx, pkg_list):
         result = execute_cmd(ctx, "install commit")
     except PluginError:
         pass
-    sleep(60)
+    time.sleep(60)
     return validate_is_committed(ctx, pkg_list)
 
 def show_cmd(ctx, cmd):
