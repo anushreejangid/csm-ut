@@ -45,6 +45,14 @@ class Plugin(CSMPlugin):
     os = {'eXR'}
     op_id = 0
 
+    def restart(self):
+        if self.ctx.shell == "Admin":
+            self.ctx.send("exit", timeout=30)
+        self.ctx.send("process restart sdr_instmgr", timeout=30)
+        self.ctx.send("process restart sdr_instagt", timeout=30)
+        if self.ctx.shell == "Admin":
+            self.ctx.send("admin", timeout=30)
+
     def add(self):
         result = False
         server_repository_url = self.ctx.server_repository_url
@@ -100,45 +108,73 @@ class Plugin(CSMPlugin):
 
     def prepare(self, pkg_list):
         pkgs = ' '.join(pkg_list)
-        cmd = "install prepare {} ".format(pkgs)
+        if self.ctx.issu_mode:
+            cmd = "install prepare issu {} ".format(pkgs)
+        else:
+            cmd = "install prepare {} ".format(pkgs)
         result = execute_cmd(self.ctx, cmd)
         if result:
             self.ctx.info("Package(s) Prepared Successfully")
         else:
             self.ctx.info("Failed to prepared packages")
-            return
-        self.ctx.send("show install prepare", timeout=30)
+        return result
 
     def activate(self):
-        result = execute_cmd(self.ctx, "install activate")
+        if self.ctx.issu_mode:
+            result = execute_cmd(self.ctx, "install activate issu")
+        else:
+            result = execute_cmd(self.ctx, "install activate")
         if result:
             self.ctx.info("Package(s) activated Successfully")
         else:
             self.ctx.info("Failed to activated packages")
-            return
+        return result
 
-    def activate_id(self, pkg_list):
+    def activate_pkgs(self, pkg_list):
         pkgs = ' '.join(pkg_list)
-        cmd = "install activate {} ".format(pkgs)
+        if self.ctx.issu_mode:
+            cmd = "install activate issu {} ".format(pkgs)
+        else:
+            cmd = "install activate {} ".format(pkgs)
         result = execute_cmd(self.ctx, cmd)
         sleep(60)
+        revert_to_ios = False
+        if self.ctx.shell != "Admin":
+            for pkg in pkg_list:
+                if "admin" in pkg:
+                    self.ctx.send("admin", timeout=30)
+                    revert_to_ios = True
+                    break
         result = validate_is_active(self.ctx, pkg_list)
+        if revert_to_ios:
+            self.ctx.send("exit", timeout=30)
         if result == len(pkg_list):
             self.ctx.info("Package(s) activated Successfully")
         else:
             self.ctx.info("Failed to activated packages")
-            return
+            return False
         self.ctx.info("Activate package(s) passed")
         self.ctx.post_status("Activate package(s) passed")
-        if not verify_pkgs(self.ctx):
-            return
+        return result
 
-    def deactivate(self, pkg_list):
+    def deactivate_pkgs(self, pkg_list):
         pkgs = ' '.join(pkg_list)
-        cmd = "install deactivate {} ".format(pkgs)
+        if self.ctx.issu_mode:
+            cmd = "install deactivate issu {} ".format(pkgs)
+        else:
+            cmd = "install deactivate {} ".format(pkgs)
         result = execute_cmd(self.ctx, cmd)
-        sleep(60)
+        pkg_list = pkgs.split(' ')
+        revert_to_ios = False
+        if self.ctx.shell != "Admin":
+            for pkg in pkg_list:
+                if "admin" in pkg:
+                    self.ctx.send("admin", timeout=30)
+                    revert_to_ios = True
+                    break
         result = validate_is_inactive(self.ctx, pkg_list)
+        if revert_to_ios:
+            self.ctx.send("exit", timeout=30)
         if result == len(pkg_list):
             self.ctx.info("Package(s) deactivated  Successfully")
         else:
@@ -147,6 +183,7 @@ class Plugin(CSMPlugin):
 
     def clean(self):
         result = execute_cmd(self.ctx, "install prepare clean")
+        return result
 
     def run(self):
         check_ncs6k_release(self.ctx)
@@ -171,19 +208,23 @@ class Plugin(CSMPlugin):
         self.prepare(pkg_list)
         self.clean()
         self.prepare(pkg_list)
+        self.restart()
         self.activate()
         result = commit_verify(self.ctx, pkg_list)
         if result != num_pkgs:
             self.ctx.error("Failed to commit activated package")
-        self.deactivate(pkg_list)
+        self.restart()
+        self.deactivate_pkgs(pkg_list)
         result = commit_verify(self.ctx, pkg_list)
         if result:
             self.ctx.error("Failed to commit deactivated package")
-        self.activate_id(pkg_list)
+        self.restart()
+        self.activate_pkgs(pkg_list)
         result = commit_verify(self.ctx, pkg_list)
         if result != num_pkgs:
             self.ctx.error("Failed to commit activated package")
-        self.deactivate(pkg_list)
+        self.restart()
+        self.deactivate_pkgs(pkg_list)
         result = commit_verify(self.ctx, pkg_list)
         if result:
             self.ctx.error("Failed to commit deactivated package")
