@@ -268,8 +268,8 @@ def jsonparser(url, tc_loc, log_dir):
                         print "No plugin found. "
                         continue
                 else:
-                    print "Nothing to do here"
-                    continue
+                    print("Please specify shell as part of TC {}".format(ctx.tc_name))
+                    break
                 ctx.log_directory = log_dir
                 ctx.log_level = logging.DEBUG
         
