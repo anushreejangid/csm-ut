@@ -202,6 +202,7 @@ def jsonparser(url, tc_loc, log_dir):
     oper_plugin = {
                   "Add" : "Install FirexAdd Plugin",
                   "Remove" : "Install FirexRemove Plugin",
+                  "RemoveAll" : "Install FirexRemoveAll Plugin",
                   "Activate" : "Install FirexActivate Plugin",
                   "Deactivate" : "Install FirexDeactivate Plugin",
                   "Commit" : "Install Commit Plugin",

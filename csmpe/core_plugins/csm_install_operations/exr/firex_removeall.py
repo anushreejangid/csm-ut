@@ -28,29 +28,44 @@ from csmpe.plugins import CSMPlugin
 from install import check_ncs6k_release
 from install import execute_cmd
 from install import wait_for_prompt
+from install import generic_show
 
 
 
 class Plugin(CSMPlugin):
-    """This plugin tests basic install operations on ios prompt."""
-    name = "Install FirexClean Plugin"
+    """This plugin tests install remove all operation."""
+    name = "Install FirexRemoveAll Plugin"
     platforms = {'ASR9K', 'NCS1K', 'NCS5K', 'NCS5500', 'NCS6K', 'XRV9K'}
-    phases = {'Activate'}
+    phases = {'Add'}
     os = {'eXR'}
     op_id = 0
     fsm_result = False
 
-    def clean(self):
-        result = execute_cmd(self.ctx, "install prepare clean")
+    def remove_all(self):
+        cmd = "install remove inactive all "
+        result = execute_cmd(self.ctx, cmd)
+        if result:
+            self.ctx.info("Package(s) remove Successfully")
+        else:
+            self.ctx.info("Failed to remove packages")
+        self.ctx.info("Remove package(s) passed")
+        self.ctx.post_status("Remove package(s) passed")
+        generic_show(self.ctx)
         return result
 
     def run(self):
         check_ncs6k_release(self.ctx)
+
         if self.ctx.shell == "Admin":
-            self.ctx.info("Switching to admin mode")
             self.ctx.send("admin", timeout=30)
-        wait_for_prompt(self.ctx)
-        result = self.clean()
+        if self.ctx.shell == "Admin":
+            self.ctx.send("admin", timeout=30)
+	wait_for_prompt(self.ctx)
+        try:
+	    result = self.remove_all()
+        except:
+            result = False
+            pass
         if self.ctx.shell == "Admin":
             self.ctx.send("exit", timeout=30)
         self.ctx.send("exit", timeout=30)
