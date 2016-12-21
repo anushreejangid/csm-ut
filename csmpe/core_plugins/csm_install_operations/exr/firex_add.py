@@ -48,8 +48,7 @@ class Plugin(CSMPlugin):
             s_packages = " ".join([package for package in packages
                                    if ('iso' in package or 'pkg' in package or 'smu' in package or 'tar' in package)])
         else:
-            s_packages = " ".join([package for package in packages
-                                   if ('rpm' in package or 'iso' in package or 'tar' in package)])
+            s_packages = " ".join([package for package in packages ])
 
         has_tar = False
         if 'tar' in s_packages:
@@ -96,7 +95,7 @@ class Plugin(CSMPlugin):
         if self.ctx.shell == "Admin":
             self.ctx.info("Switching to admin mode")
             self.ctx.send("admin", timeout=30)
-	wait_for_prompt(self.ctx)
+        wait_for_prompt(self.ctx)
         pkg_list = self.add()
         self.ctx.info(pkg_list)
         if self.ctx.shell == "Admin":

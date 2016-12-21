@@ -156,6 +156,7 @@ def plugin_run(url, phase, cmd, log_dir, package, id,  repository_url, plugin_na
     ctx.host_urls = list(url)
     ctx.success = False
     ctx.pkg_id = 0
+
     ctx.requested_action = phase
     ctx.log_directory = log_dir
     session_filename = os.path.join(log_dir, "session.log")
@@ -269,8 +270,8 @@ def jsonparser(url, tc_loc, log_dir):
                         print "No plugin found. "
                         continue
                 else:
-                    print "Nothing to do here"
-                    continue
+                    print("Please specify shell as part of TC {}".format(ctx.tc_name))
+                    break
                 ctx.log_directory = log_dir
                 ctx.log_level = logging.DEBUG
         
@@ -298,3 +299,5 @@ def jsonparser(url, tc_loc, log_dir):
 if __name__ == '__main__':
     cli()
     #jsonparser()
+
+
