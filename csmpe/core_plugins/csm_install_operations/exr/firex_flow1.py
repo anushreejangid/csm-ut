@@ -52,6 +52,7 @@ class Plugin(CSMPlugin):
         self.ctx.send("process restart sdr_instagt", timeout=30)
         if self.ctx.shell == "Admin":
             self.ctx.send("admin", timeout=30)
+        sleep(120)
 
     def add(self):
         result = False

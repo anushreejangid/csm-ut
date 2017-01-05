@@ -406,15 +406,21 @@ def handle_done(self, fsm_ctx):
     return True
 
 def handle_hw_modify_cmd(fsm_ctx):
+    global plugin_ctx
     op_id = get_op_id(fsm_ctx.ctrl.before)
     if op_id == -1:
         return False
-    ctx.send("yes\r\n", timeout=30)
+    plugin_ctx.send("yes\r\n", timeout=30)
     # give hw 5 mins to stabilize
 
     time.sleep(300)
 
-    ctx.info("Operation {} finished successfully".format(self.op_id))
+    plugin_ctx.info("Operation {} finished successfully".format(self.op_id))
+    return True
+
+def handle_confirm(fsm_ctx):
+    global plugin_ctx
+    plugin_ctx.send("yes\r\n", timeout=30)
     return True
 
 def get_pkgs(ctx, id):
@@ -790,8 +796,9 @@ def execute_cmd(ctx, cmd):
     HW_PROMPT = re.compile("hardware module ?")
     NO_IMPACT = re.compile("NO IMPACT OPERATION")
     DONE_PROMPT = re.compile("DONE")
+    CONFIRM_PROMPT = re.compile("confirm")
 
-    events = [CONTINUE_IN_BACKGROUND, CONTINUE_ASYNCHRONOUSLY, DONE_PROMPT, ISSU_PROMPT, REBOOT_PROMPT, HW_PROMPT, ADMIN_REBOOT_PROMPT,ABORTED, NO_IMPACT, RUN_PROMPT]
+    events = [CONTINUE_IN_BACKGROUND, CONTINUE_ASYNCHRONOUSLY, DONE_PROMPT, CONFIRM_PROMPT, ISSU_PROMPT, REBOOT_PROMPT, HW_PROMPT, ADMIN_REBOOT_PROMPT,ABORTED, NO_IMPACT, RUN_PROMPT]
     transitions = [
         (CONTINUE_IN_BACKGROUND, [0], -1, handle_non_reload_activate_deactivate, 100),
         (CONTINUE_ASYNCHRONOUSLY, [0], -1, handle_admin_non_reload, 100),
@@ -801,6 +808,7 @@ def execute_cmd(ctx, cmd):
         (NO_IMPACT, [0], -1, no_impact_warning, 20),
         (RUN_PROMPT, [0], -1, handle_non_reload_activate_deactivate, 100),
         (HW_PROMPT, [0], -1, handle_hw_modify_cmd, 100),
+        (CONFIRM_PROMPT, [0], -1, handle_confirm, 100),
         (DONE_PROMPT, [0], -1,handle_done, 100),
         (ABORTED, [0], -1, handle_aborted, 100),
     ]
