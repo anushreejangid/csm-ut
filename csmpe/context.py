@@ -218,7 +218,7 @@ class PluginContext(object):
         store_dir = self._csm.log_directory
         file_name = self.normalize_filename(name)
         full_path = os.path.join(store_dir, file_name)
-        with open(full_path, "w") as f:
+        with open(full_path, "w+") as f:
             f.write(data)
             self.info("File '{}' saved in CSM log directory".format(file_name))
             return file_name

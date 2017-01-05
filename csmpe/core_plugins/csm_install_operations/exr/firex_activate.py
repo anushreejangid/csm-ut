@@ -93,7 +93,7 @@ class Plugin(CSMPlugin):
         packages = " ".join(self.ctx.software_packages)
         pkg_id = None
         if hasattr(self.ctx, 'pkg_id'):
-            pkg_id = self.ctx.pkg_id
+            pkg_id = " ".join(self.ctx.pkg_id)
         if self.ctx.shell == "Admin":
             self.ctx.send("admin", timeout=30)
 	wait_for_prompt(self.ctx)

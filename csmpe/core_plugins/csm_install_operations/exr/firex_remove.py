@@ -69,7 +69,8 @@ class Plugin(CSMPlugin):
         check_ncs6k_release(self.ctx)
 
         packages = " ".join(self.ctx.software_packages)
-        pkg_id = self.ctx.pkg_id
+        if hasattr(self.ctx, 'pkg_id'):
+            pkg_id = " ".join(self.ctx.pkg_id)
 
         if self.ctx.shell == "Admin":
             self.ctx.send("admin", timeout=30)

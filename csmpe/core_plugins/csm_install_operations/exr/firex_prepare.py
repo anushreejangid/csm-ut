@@ -77,7 +77,7 @@ class Plugin(CSMPlugin):
         pkg_id = None
         
         if hasattr(self.ctx , 'pkg_id'):
-            pkg_id = self.ctx.pkg_id
+            pkg_id = " ".join(self.ctx.pkg_id)
 
         if self.ctx.shell == "Admin":
             self.ctx.info("Switching to admin mode")

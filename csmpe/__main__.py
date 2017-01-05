@@ -40,7 +40,7 @@ import urlparse
 import json
 import pprint
 import time
-
+import shutil
 from csmpe.context import InstallContext
 from csmpe.csm_pm import CSMPluginManager
 from csmpe.csm_pm import install_phases
@@ -191,14 +191,24 @@ def plugin_run(url, phase, cmd, log_dir, package, id,  repository_url, plugin_na
 
 @cli.command("test", help="Drive test case runs based on user input or automated", 
                      short_help="Run test case")
-@click.option("--url", multiple=True, envvar='CSMPLUGIN_URLS', type=URL(),
-              help='The connection url to the host (i.e. telnet://user:pass@hostname). '
-                   'The --url option can be repeated to define multiple jumphost urls. '
-                   'If no --url option provided the CSMPLUGIN_URLS environment variable is used. ')
-@click.option("--log_dir", default="/tmp", type=click.Path(),
+@click.option("--config_file", "-c", type=click.Path(exists = True, resolve_path = True, readable = True), 
+                help='Config file containing all parameters. Parameters specified on command line'
+                     ' override the config file')
+@click.option("--admin_active_console", "-adac", type=URL(),
+              help='The connection url to the active ADMIN host (i.e. telnet://user:pass@hostname). ')
+@click.option("--admin_standby_console", "-adsc", multiple=True, type=URL(),
+              help='The connection url to the standby ADMIN host (i.e. telnet://user:pass@hostname). '
+                   'The --admin_standby_console option can be repeated to define multiple admin standby hosts.')
+@click.option("--xr_active_console", "-xrac", type=URL(),
+              help='The connection url to the active XR host (i.e. telnet://user:pass@hostname). ')
+@click.option("--xr_standby_console", "-xrsc", multiple=True, type=URL(),
+              help='The connection url to the standby XR host (i.e. telnet://user:pass@hostname). '
+                   'The --xr_standby_console option can be repeated to define multiple XR standby hosts.')
+@click.option("--log_dir", "-l", type=click.Path(),
               help="Log directory. If not specified then default is /tmp")
-@click.option("--tc_loc", required=True, type=click.Path(), help="Test case file/dir location")
-def jsonparser(url, tc_loc, log_dir):
+@click.option("--tc_loc", "-t", type=click.Path(), help="Test case file/dir location")
+def jsonparser(config_file, admin_active_console, admin_standby_console, 
+        xr_active_console, xr_standby_console, tc_loc, log_dir):
     oper_plugin = {
                   "Add" : "Install FirexAdd Plugin",
                   "Remove" : "Install FirexRemove Plugin",
@@ -211,90 +221,128 @@ def jsonparser(url, tc_loc, log_dir):
                   "Node Check" : "Node Status Check Plugin",
                   "Command" : "Custom Commands Capture Plugin",
                   "Prepare" : "Install FirexPrepare Plugin",
-                  "Flow1" : "Install FirexFlow1 Plugin"
+                  "Flow1" : "Install FirexFlow1 Plugin",
+                  "Prepare Clean" : "Install FirexClean Plugin"
                   }
     tc_list = []
-    if os.path.isfile(tc_loc):
-        tc_list.append(tc_loc)
-    elif os.path.isdir(tc_loc):
-        tc_list = [os.path.join(tc_loc,f) for f in os.listdir(tc_loc) if f.endswith(".json")]
+    config = {}
+    config['log_dir'] = '/tmp'
+    config['tc_loc'] = '/tmp'
+    if config_file:
+        if os.path.isfile(config_file):
+           with open(config_file) as fd_config:
+               config.update(json.load(fd_config))
+        else:
+            raise IOError("Error! Config file not found!!")
+    if tc_loc:
+        config['tc_loc'] = tc_loc
+    if admin_active_console:
+        config['admin_active_console'] = admin_active_console
+    if admin_standby_console:
+        config['admin_standby_console'] = admin_standby_console
+    if xr_active_console:
+        config['xr_active_console'] = xr_active_console
+    if xr_standby_console:
+        config['xr_standby_console'] = xr_standby_console
+    if log_dir:
+        config['log_dir'] = log_dir
+    mandatory_args = [ 'xr_active_console' ]
+    for arg_name in mandatory_args:
+        if not config.get(arg_name):
+            raise click.UsageError('{} argument missing.\n Mandatory arguments: {}\n'.format(arg_name, mandatory_args))
+    if os.path.isfile(config['tc_loc']):
+        tc_list.append(config['tc_loc'])
+    elif os.path.isdir(config['tc_loc']):
+        tc_list = [os.path.join(config['tc_loc'],f) for f in os.listdir(config['tc_loc']) if f.endswith(".json")]
 
-    for tc_file in tc_list:
+    if not tc_list:
+        raise IOError("Error! No testcase found to run in {}".format(config['tc_loc']))
+    for tc_file_org in tc_list:
+        print("TC file : {}".format(tc_file_org))
+        log_subdir = os.path.splitext(os.path.basename(tc_file_org))[0]
+        log_dir = os.path.join(config['log_dir'], time.strftime("csm-%Y%m%d%H%M%S"), log_subdir)
+        tc_file = os.path.join(log_dir, 'tc.json') 
+        os.makedirs(log_dir)
+        shutil.copyfile(tc_file_org, tc_file)
         with open(tc_file) as fd:
             try:
                 data = json.load(fd)
             except:
                 click.echo("ERROR! Json file {} failed to parse".format(tc_file))
                 continue
-            print("TC file : {}".format(tc_file))
-            log_subdir = os.path.splitext(os.path.basename(tc_file))[0]
-            log_dir = os.path.join(log_dir, time.strftime("csm-%Y%m%d%H%M%S"), log_subdir)
-
-            for idx, tc in enumerate(data):
-                #url, phase, cmd, log_dir, package, repository_url, plugin_name
-                ctx = InstallContext()
-                ctx.hostname = "Hostname"
-                ctx.host_urls = list(url)
-                print ctx.host_urls
-                ctx.success = False
-                ctx.tc_name = tc.get("TC")
-                if ctx.tc_name :
-                  print("Executing TC No {} : {}".format(idx+1, ctx.tc_name))
-                ctx.tc_id = idx + 1
-                ctx.shell = tc.get("Shell")
-                ctx.requested_action = []
-     
-                if ctx.shell:
-                    operation = tc.get("Operation")
-                    if operation:
-                      plugin_name = oper_plugin.get(operation)
-                      if not plugin_name:
-                          print("No plugin found for {}".format(plugin_name))
-                          continue
-                      else:
-                          print("Plugin to be launched {}".format(plugin_name))
-                    elif tc.get("Command"):
-                        plugin_name = oper_plugin["Command"]
-                        cmd  = tc.get("Command")
-                        print("Plugin cmd {} with shell {} with plugin {}".format(cmd, ctx.shell, plugin_name))
-                        if cmd:
-                            if "Bash" in ctx.shell:
-                                cmd = "run " + cmd 
-                                ctx.requested_action = ["Pre-Upgrade"]
-                            ctx._custom_commands = [cmd]
-                            print ("Custom command {}".format(ctx.custom_commands))
-                        else:
-                            print "No command specified to execute"
-                            continue 
-                    else:
-                        print "No plugin found. "
+        for idx, tc in enumerate(data):
+            with open(tc_file) as fd:
+                data = json.load(fd)
+                tc = data[idx]
+            #url, phase, cmd, log_dir, package, repository_url, plugin_name
+            ctx = InstallContext()
+            ctx.hostname = "Hostname"
+            urls = []
+            if config.get('xr_standby_console'):
+                urls.extend(config['xr_standby_console'])
+            urls.append(config['xr_active_console'])
+            ctx.host_urls = urls
+            print ctx.host_urls
+            ctx.success = False
+            ctx.tc_name = tc.get("TC")
+            if ctx.tc_name :
+                print("Executing TC No {} : {}".format(idx+1, ctx.tc_name))
+            ctx.tc_id = idx + 1
+            ctx.shell = tc.get("shell")
+            ctx.requested_action = []
+            if ctx.shell:
+                operation = tc.get("operation")
+                if operation:
+                    plugin_name = oper_plugin.get(operation)
+                    if not plugin_name:
+                        print("No plugin found for {}".format(plugin_name))
                         continue
+                    else:
+                        print("Plugin to be launched {}".format(plugin_name))
+                elif tc.get("command"):
+                    plugin_name = oper_plugin["command"]
+                    cmd  = tc.get("command")
+                    print("Plugin cmd {} with shell {} with plugin {}".format(cmd, ctx.shell, plugin_name))
+                    if cmd:
+                        if "Bash" in ctx.shell:
+                            cmd = "run " + cmd 
+                            ctx.requested_action = ["Pre-Upgrade"]
+                        ctx._custom_commands = [cmd]
+                        print ("Custom command {}".format(ctx.custom_commands))
+                    else:
+                        print "No command specified to execute"
+                        continue 
                 else:
-                    print("Please specify shell as part of TC {}".format(ctx.tc_name))
-                    break
-                ctx.log_directory = log_dir
-                ctx.log_level = logging.DEBUG
-        
-                ctx.software_packages = tc.get("Packages",[])
-                print ctx.software_packages
-                ctx.server_repository_url = tc.get("Repository_url")
-        
-                ctx.pattern = tc.get("Pattern",[])
-                print("pattern {}".format(ctx.pattern))
-        
-                ctx.nextlevel = tc.get("Nextlevel",[])
-                print ctx.nextlevel
-                
-                ctx.op_id = tc.get("Op-id",0)
-                ctx.issu_mode = tc.get("Mode", None)
+                    print "No plugin found. "
+                    continue
+            else:
+                print("Please specify shell as part of TC {}".format(ctx.tc_name))
+                break
+            ctx.log_directory = log_dir
+            ctx.log_level = logging.DEBUG
+    
+            ctx.software_packages = tc.get("packages",[])
+            print ctx.software_packages
+            ctx.server_repository_url = tc.get("repository_url")
+    
+            ctx.pattern = tc.get("pattern",[])
+            print("pattern {}".format(ctx.pattern))
+    
+            ctx.nextlevel = tc.get("nextlevel",[])
+            print ctx.nextlevel
+            
+            ctx.op_id = tc.get("resid",0)
+            ctx.issu_mode = tc.get("mode", None)
+            ctx.pkg_id = tc.get("pkg_id",[])
 
-                pm = CSMPluginManager(ctx)
-                pm.set_name_filter(plugin_name)
-                results = pm.dispatch("run")
-        
-                print("\n Plugin execution finished.\n")
-                print("Log files dir: {}".format(log_dir))
-                print("Results: {}".format(" ".join(map(str, results))))
+            pm = CSMPluginManager(ctx)
+            pm.set_name_filter(plugin_name)
+            results = pm.dispatch("run")
+   
+            print("\n Plugin execution finished.\n")
+            print("Log files dir: {}".format(log_dir))
+            print("Results: {}".format(" ".join(map(str, results))))
+                
 
 if __name__ == '__main__':
     cli()

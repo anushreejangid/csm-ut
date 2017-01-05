@@ -289,7 +289,7 @@ def get_op_id(output):
 def report_log(ctx, status, message):
     data = {}
     data['TC'] = ctx.tc_name
-    data['ID'] = ctx.tc_id
+    data['tc_id'] = ctx.tc_id
     data['status'] = 'Pass' if status else 'Fail'
     data['message'] = message
     result_file = os.path.join(ctx.log_directory, 'result.log')
@@ -298,7 +298,7 @@ def report_log(ctx, status, message):
         if is_append:
             fd_log.write(",\n")
         fd_log.write(json.dumps(data, indent=4))
-    ctx.post_status("ID: {}, TC: {} :: {}".format(ctx.tc_id, ctx.tc_name, message))
+    ctx.post_status("tc_id: {}, TC: {} :: {}".format(ctx.tc_id, ctx.tc_name, message))
 
 def report_install_status(ctx, op_id):
     """
@@ -562,7 +562,7 @@ def match_pattern(pattern, output):
         if result:
             return True, "Pattern {} matched..!!!".format(result)
         else:
-            return False, "Pattern {} not matched in {}!!!".format(pattern, output)
+            return False, "Pattern {} not matched in {}!!!\n".format(pattern, output)
 
 def next_level_processing(ctx):
     if ctx.nextlevel:
@@ -823,3 +823,31 @@ def wait_for_prompt(ctx):
         if not proceed:
             time.sleep(30)
     return
+
+def process_save_data(ctx):
+    ctx.info("Processing data to save")
+    tc_id = ctx.tc_id - 1
+    log_dir = ctx.log_directory
+    tc_file = os.path.join(log_dir, 'tc.json')
+    with open(tc_file) as fd_tc:
+        data  = json.load(fd_tc)
+    tc = data[tc_id]
+    with open(tc_file) as fd_tc:
+        tc_file_content  = fd_tc.read()
+    if tc.get('save_data'):
+        save_data = tc['save_data']
+    else:
+        return
+    print save_data
+
+    for to_save, to_replace in save_data.iteritems():
+        to_save_value = getattr(ctx, to_save)
+        ctx.info("Replace {} with value {}".format(to_replace , to_save_value))
+        updated_content = tc_file_content.replace(to_replace, to_save_value)
+
+    ctx.info("Writing {}".format(updated_content))
+
+    with open(tc_file, 'w') as fd_tc:
+        fd_tc.write(updated_content)
+
+

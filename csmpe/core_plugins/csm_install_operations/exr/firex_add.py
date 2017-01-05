@@ -29,6 +29,7 @@ from install import execute_cmd
 from install import wait_for_prompt
 from install import check_ncs6k_release
 from install import get_pkgs
+from install import process_save_data
 
 
 
@@ -77,6 +78,7 @@ class Plugin(CSMPlugin):
             return
         self.ctx.info("Add package(s) passed")
         self.ctx.post_status("Add package(s) passed")
+        process_save_data(self.ctx)
         return get_pkgs(self.ctx, pkg_id)
 
     def run(self):
@@ -91,7 +93,8 @@ class Plugin(CSMPlugin):
         if packages is None:
             self.ctx.error("No package list provided")
             return
-
+        else:
+            self.ctx.post_status("Packages to be added: {}".format(packages))
         if self.ctx.shell == "Admin":
             self.ctx.info("Switching to admin mode")
             self.ctx.send("admin", timeout=30)

@@ -78,7 +78,7 @@ class Plugin(CSMPlugin):
 
         packages = " ".join(self.ctx.software_packages)
         if hasattr(self.ctx, 'pkg_id'):
-            pkg_id = self.ctx.pkg_id
+            pkg_id = " ".join(self.ctx.pkg_id)
 #        if packages is None:
 #            self.ctx.error("No package list provided")
 #            return
