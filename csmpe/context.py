@@ -98,14 +98,11 @@ class PluginContext(object):
         self.pkg_id = csm.pkg_id
 
         if csm is not None:
-            for host_url in self._csm.host_urls:
-                self._connection = condoor.Connection(
+            self._connection = condoor.Connection(
                     self._csm.hostname,
-                    host_url,
+                    self._csm.host_urls,
                     log_dir=self._csm.log_directory
-                )
-                if self._connection:
-                    break
+                    )
             self._set_logging(hostname=self._csm.hostname, log_dir=self._csm.log_directory, log_level=logging.DEBUG)
             self._device_detect()
         else:

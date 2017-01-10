@@ -337,9 +337,6 @@ def handle_non_reload_activate_deactivate(fsm_ctx):
     """
     global plugin_ctx
     global last_opid
-    nextlevel = plugin_ctx.nextlevel
-    if nextlevel:
-        next_level_processing(plugin_ctx)
     op_id = get_op_id(fsm_ctx.ctrl.before)
     last_opid = op_id 
     if op_id == -1:
@@ -349,7 +346,9 @@ def handle_non_reload_activate_deactivate(fsm_ctx):
         status, message = match_pattern(plugin_ctx.pattern, fsm_ctx.ctrl.before)
         report_log(plugin_ctx, status, message) 
         return False
-
+    nextlevel = plugin_ctx.nextlevel
+    if nextlevel:
+        next_level_processing(plugin_ctx)
     watch_operation(plugin_ctx, op_id)
     status = report_install_status(plugin_ctx, op_id)
     if status:
@@ -363,9 +362,6 @@ def handle_reload_activate_deactivate(fsm_ctx):
     :return: True if successful other False
     """
     global plugin_ctx
-    nextlevel = plugin_ctx.nextlevel
-    if nextlevel:
-        next_level_processing(plugin_ctx)
     op_id = get_op_id(fsm_ctx.ctrl.before)
     if op_id == -1:
         status, message = match_pattern(plugin_ctx.pattern, fsm_ctx.ctrl.before)
@@ -373,6 +369,9 @@ def handle_reload_activate_deactivate(fsm_ctx):
         return False
     else:
         plugin_ctx.info("Operation id is {}".format(op_id))
+        nextlevel = plugin_ctx.nextlevel
+    if nextlevel:
+        next_level_processing(plugin_ctx)
     try:
         watch_operation(plugin_ctx, op_id)
     except plugin_ctx.CommandTimeoutError:
@@ -574,12 +573,12 @@ def next_level_processing(ctx):
     if ctx.nextlevel:
         ctx.info("Next level processing ")
         for cmds in ctx.nextlevel:
-            shell = cmds.get("Shell")
-            cmd = cmds.get("Command")
-            pattern = cmds.get("Pattern")
+            shell = cmds.get("shell")
+            cmd = cmds.get("command")
+            pattern = cmds.get("pattern")
             if "Bash" in shell:
                  cmd = "run " + cmd
-            if shell is "SysadminBash":
+            if shell is "AdminBash":
                 cmd_out = send_admin_cmd(ctx, cmd)
             else:
                 cmd_out = ctx.send(cmd, timeout=100)

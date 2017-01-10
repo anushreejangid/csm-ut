@@ -268,7 +268,7 @@ def jsonparser(config_file, admin_active_console, admin_standby_console,
             try:
                 data = json.load(fd)
             except:
-                click.echo("ERROR! Json file {} failed to parse".format(tc_file))
+                click.echo("ERROR! Json file {} failed to parse".format(tc_file_org))
                 continue
         for idx, tc in enumerate(data):
             with open(tc_file) as fd:
@@ -338,7 +338,14 @@ def jsonparser(config_file, admin_active_console, admin_standby_console,
             pm = CSMPluginManager(ctx)
             pm.set_name_filter(plugin_name)
             results = pm.dispatch("run")
-   
+            
+            #Retain session.log as they get deleted after each plugin execution
+            session_filename = os.path.join(log_dir, "session.log")
+            session_filename_main = os.path.join(log_dir, "session_main.log")
+            with open(session_filename) as sf:
+                with open(session_filename_main,"a+")as sfm:
+                    for line in sf:
+                        sfm.write(line)             
             print("\n Plugin execution finished.\n")
             print("Log files dir: {}".format(log_dir))
             print("Results: {}".format(" ".join(map(str, results))))

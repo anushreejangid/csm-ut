@@ -46,7 +46,7 @@ class Plugin(CSMPlugin):
             for cmd in command_list:
                 self.ctx.info("Capturing output of '{}' for shell {}".format(cmd,shell))
                 try:
-                    if shell == "SysadminBash" or shell == "Sysadmin":
+                    if shell == "AdminBash" or shell == "Admin":
                         self.ctx.info("Sending admin command")
                         output = send_admin_cmd(self.ctx, cmd)
                     else:

@@ -50,7 +50,8 @@ class Plugin(CSMPlugin):
             cmd = "install prepare id {} ".format(pkg_id)
         result = execute_cmd(self.ctx, cmd)
         if result:
-            self.ctx.info("Package(s) Prepared Successfully")
+            self.ctx.post_status("Package(s) Prepared Successfully")
+            process_save_data(self.ctx)
         else:
             self.ctx.info("Failed to prepared packages")
             return
@@ -63,9 +64,10 @@ class Plugin(CSMPlugin):
             cmd = "install prepare {} ".format(pkgs)
         result = execute_cmd(self.ctx, cmd)
         if result:
-            self.ctx.info("Package(s) Prepared Successfully")
+            self.ctx.post_status("Package(s) Prepared Successfully")
+            process_save_data(self.ctx)
         else:
-            self.ctx.info("Failed to prepared packages")
+            self.ctx.post_status("Failed to prepare packages")
             return
         return result
 
