@@ -200,11 +200,10 @@ def wait_for_reload(ctx):
 
         time.sleep(poll_time)
         output = ctx.send(cmd)
-        if xr_run in output:
-            inventory = parse_show_platform(output)
-            if validate_node_state(inventory):
-                ctx.info("All nodes in desired state")
-                return True
+        inventory = parse_show_platform(output)
+        if validate_node_state(inventory):
+            ctx.info("All nodes in desired state")
+            return True
 
     # Some nodes did not come to run state
 
