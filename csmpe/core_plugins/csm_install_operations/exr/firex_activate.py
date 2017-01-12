@@ -30,7 +30,7 @@ from install import execute_cmd
 from install import validate_is_active
 from install import wait_for_prompt
 #from time import sleep
-import sys, traceback
+import sys, traceback, time
 
 
 class Plugin(CSMPlugin):
@@ -67,7 +67,7 @@ class Plugin(CSMPlugin):
         else:
             cmd = "install activate {} ".format(pkgs)
         result = execute_cmd(self.ctx, cmd)
-        sleep(60)
+        time.sleep(60)
         revert_to_ios = False
         if self.ctx.shell != "Admin":
             for pkg in pkg_list:
