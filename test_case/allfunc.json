@@ -1,0 +1,56 @@
+[
+    {
+       "TC" : "Add a tar from harddisk",
+       "shell" : "XR",
+       "operation" : "Add",
+       "repository_url" : "/harddisk:/",
+       "packages" : [ "62128I.tar" ],
+       "pattern" : [ "successfully" ],
+       "save_data" : { "op_id" : "<id1>" },
+       "nextlevel" : [
+                     {
+ 						 "TC" : "Create a ut file  on Sysadmin",
+                         "shell" : "AdminBash",
+                         "command" : "touch /tmp/inst_ut_skip"
+                     },
+				     {
+ 						 "TC" : "Check for core in harddisk on XR",
+                         "shell" : "XRBash",
+                         "command" : "touch /tmp/inst_ut_skip"
+                     }
+                    ]
+    },
+    {
+        "TC" : "Prepare packages using id",
+        "shell" : "XR",
+        "operation" : "Prepare",
+        "pkg_id" : [ "<id1> ", "force"],
+        "pattern" : [ "success" , "completed successully" ]
+    },
+    {
+		"TC" : "Prepare clean",
+		"shell" : "XR",
+		"operation" : "Prepare Clean",
+		"pattern" : [ "successfully" ]
+    },
+	{
+		"TC" : "Prepare using wildcard",
+		"operation" : "Prepare",
+		"shell" : "XR",
+		"packages" : [ "*mini*" , "*mpls*" ,"force"],
+		"pattern" : [ "successfully" ]
+    },
+	{
+		"TC" : "Prepare clean",
+		"shell" : "XR",
+		"operation" : "Prepare Clean",
+		"pattern" : [ "successfully" ]
+    },
+    {
+		"TC" : "Activate packages ",
+        "shell" : "XR",
+		"operation" : "Activate" ,
+        "packages" : [ "*mini*", "*62118I*" ],
+        "pattern" : [ "success" ]
+	}
+]

@@ -257,10 +257,12 @@ def jsonparser(config_file, admin_active_console, admin_standby_console,
 
     if not tc_list:
         raise IOError("Error! No testcase found to run in {}".format(config['tc_loc']))
+
+    log_parent_dir = os.path.join(config['log_dir'], time.strftime("csm-%Y%m%d%H%M%S"))
     for tc_file_org in tc_list:
         print("TC file : {}".format(tc_file_org))
         log_subdir = os.path.splitext(os.path.basename(tc_file_org))[0]
-        log_dir = os.path.join(config['log_dir'], time.strftime("csm-%Y%m%d%H%M%S"), log_subdir)
+        log_dir = os.path.join(log_parent_dir, log_subdir)
         tc_file = os.path.join(log_dir, 'tc.json') 
         os.makedirs(log_dir)
         shutil.copyfile(tc_file_org, tc_file)
@@ -279,10 +281,14 @@ def jsonparser(config_file, admin_active_console, admin_standby_console,
             ctx.hostname = "Hostname"
             urls = []
             if config.get('xr_standby_console'):
-                urls.extend(config['xr_standby_console'])
+                if isinstance(config['xr_standby_console'], list):
+                    urls.extend(config['xr_standby_console'])
+                else:
+                    urls.append(config['xr_standby_console'])
             urls.append(config['xr_active_console'])
+            urls = [url.encode('utf8') if isinstance(url, unicode) else url for url in urls ]
             ctx.host_urls = urls
-            print ctx.host_urls
+            print("URL: {}, STANDBY: {}, ACTIVE: {}".format(ctx.host_urls, "", config['xr_active_console']))
             ctx.success = False
             ctx.tc_name = tc.get("TC")
             if ctx.tc_name :
@@ -334,7 +340,7 @@ def jsonparser(config_file, admin_active_console, admin_standby_console,
             ctx.op_id = tc.get("resid",0)
             ctx.issu_mode = tc.get("mode", None)
             ctx.pkg_id = tc.get("pkg_id",[])
-
+            print("CTX: {}".format(json.dumps(ctx.__dict__, indent=4)))
             pm = CSMPluginManager(ctx)
             pm.set_name_filter(plugin_name)
             results = pm.dispatch("run")
