@@ -34,7 +34,7 @@ from install import generic_show
 
 class Plugin(CSMPlugin):
     """This plugin tests basic install operations on ios prompt."""
-    name = "Install FirexExtract Plugin"
+    name = "Install Extract Plugin"
     platforms = {'ASR9K', 'NCS1K', 'NCS5K', 'NCS5500', 'NCS6K', 'XRV9K'}
     phases = {'Add'}
     os = {'eXR'}

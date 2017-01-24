@@ -35,7 +35,7 @@ import sys, traceback
 
 class Plugin(CSMPlugin):
     """This plugin tests basic install operations on ios prompt."""
-    name = "Install FirexDeactivate Plugin"
+    name = "Install Deactivate Plugin"
     platforms = {'ASR9K', 'NCS1K', 'NCS5K', 'NCS5500', 'NCS6K', 'XRV9K'}
     phases = {'Activate'}
     os = {'eXR'}

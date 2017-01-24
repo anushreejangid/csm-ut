@@ -34,7 +34,7 @@ from install import generic_show
 
 class Plugin(CSMPlugin):
     """This plugin tests install remove all operation."""
-    name = "Install FirexRemoveAll Plugin"
+    name = "Install RemoveAll Plugin"
     platforms = {'ASR9K', 'NCS1K', 'NCS5K', 'NCS5500', 'NCS6K', 'XRV9K'}
     phases = {'Add'}
     os = {'eXR'}
@@ -60,9 +60,9 @@ class Plugin(CSMPlugin):
             self.ctx.send("admin", timeout=30)
         if self.ctx.shell == "Admin":
             self.ctx.send("admin", timeout=30)
-	wait_for_prompt(self.ctx)
+        wait_for_prompt(self.ctx)
         try:
-	    result = self.remove_all()
+            result = self.remove_all()
         except:
             result = False
             pass

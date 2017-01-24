@@ -33,7 +33,7 @@ from install import wait_for_prompt
 
 class Plugin(CSMPlugin):
     """This plugin tests basic install operations on ios prompt."""
-    name = "Install FirexPrepare Plugin"
+    name = "Install Prepare Plugin"
     platforms = {'ASR9K', 'NCS1K', 'NCS5K', 'NCS5500', 'NCS6K', 'XRV9K'}
     phases = {'Pre-Activate'}
     os = {'eXR'}

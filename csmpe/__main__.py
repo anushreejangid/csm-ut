@@ -210,19 +210,20 @@ def plugin_run(url, phase, cmd, log_dir, package, id,  repository_url, plugin_na
 def jsonparser(config_file, admin_active_console, admin_standby_console, 
         xr_active_console, xr_standby_console, tc_loc, log_dir):
     oper_plugin = {
-                  "Add" : "Install FirexAdd Plugin",
-                  "Remove" : "Install FirexRemove Plugin",
-                  "RemoveAll" : "Install FirexRemoveAll Plugin",
-                  "Activate" : "Install FirexActivate Plugin",
-                  "Deactivate" : "Install FirexDeactivate Plugin",
+                  "Add" : "Install Add Plugin",
+                  "Remove" : "Install Remove Plugin",
+                  "Remove All" : "Install RemoveAll Plugin",
+                  "Remove Inactive" : "Install RemoveInactive Plugin"
+                  "Activate" : "Install Activate Plugin",
+                  "Deactivate" : "Install Deactivate Plugin",
                   "Commit" : "Install Commit Plugin",
-                  "Extract" : "Install FirexExtract Plugin",
+                  "Extract" : "Install Extract Plugin",
                   "Core Check" : "Core Error Check Plugin",
                   "Node Check" : "Node Status Check Plugin",
                   "Command" : "Custom Commands Capture Plugin",
-                  "Prepare" : "Install FirexPrepare Plugin",
+                  "Prepare" : "Install Prepare Plugin",
                   "Flow1" : "Install FirexFlow1 Plugin",
-                  "Prepare Clean" : "Install FirexClean Plugin"
+                  "Prepare Clean" : "Install Clean Plugin"
                   }
     tc_list = []
     config = {}
