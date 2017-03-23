@@ -4,7 +4,7 @@
        "shell" : "XR",
        "operation" : "Add",
        "repository_url" : "/harddisk:/",
-       "packages" : [ "62128I.tar" ],
+       "packages" : [ "ncs5500-mpls-2.1.0.0-r621110I.x86_64.rpm" ],
        "pattern" : [ "successfully" ],
        "save_data" : { "op_id" : "<id1>" },
        "nextlevel" : [
@@ -37,7 +37,7 @@
 		"TC" : "Prepare using wildcard",
 		"operation" : "Prepare",
 		"shell" : "XR",
-		"packages" : [ "*mini*" , "*mpls*" ,"force"],
+		"packages" : [ "*mpls*" ],
 		"pattern" : [ "successfully" ]
     },
 	{
@@ -50,7 +50,7 @@
 		"TC" : "Activate packages ",
         "shell" : "XR",
 		"operation" : "Activate" ,
-        "packages" : [ "*mini*", "*62118I*" ],
+        "packages" : [ "*mpls*" ],
         "pattern" : [ "success" ]
 	}
 ]

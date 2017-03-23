@@ -70,15 +70,15 @@ class Plugin(CSMPlugin):
         time.sleep(60)
         revert_to_ios = False
         if self.ctx.shell != "Admin":
-            for pkg in pkg_list:
+            for pkg in pkgs:
                 if "admin" in pkg:
                     self.ctx.send("admin", timeout=30)
                     revert_to_ios = True
                     break
-        result = validate_is_active(self.ctx, pkg_list)
+        result = validate_is_active(self.ctx, pkgs)
         if revert_to_ios:
             self.ctx.send("exit", timeout=30)
-        if result == len(pkg_list):
+        if result == len(pkgs):
             self.ctx.info("Package(s) activated Successfully")
         else:
             self.ctx.info("Failed to activated packages")

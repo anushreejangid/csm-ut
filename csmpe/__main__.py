@@ -213,7 +213,7 @@ def jsonparser(config_file, admin_active_console, admin_standby_console,
                   "Add" : "Install Add Plugin",
                   "Remove" : "Install Remove Plugin",
                   "Remove All" : "Install RemoveAll Plugin",
-                  "Remove Inactive" : "Install RemoveInactive Plugin"
+                  "Remove Inactive" : "Install RemoveInactive Plugin",
                   "Activate" : "Install Activate Plugin",
                   "Deactivate" : "Install Deactivate Plugin",
                   "Commit" : "Install Commit Plugin",
